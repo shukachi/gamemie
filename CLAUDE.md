@@ -46,4 +46,38 @@ A separate launcher app (pre-game) handles:
 - Screens/views: loading screen → lobby → confirmation dialog → mini-game → back to lobby
 - Each arcade machine is its own mini-game module; the lobby orchestrates launching them
 - Player state (attempts per machine, accumulated score) persists for the full session
-- Leaderboard data should be stored persistently (file or SQLite) so scores survive between sessions
+- Leaderboard data stored in JSON files (`data/leaderboards/`) so scores survive between sessions
+
+## Running the Game
+
+```bash
+# Install dependencies (one time)
+pip install arcade
+
+# Run the game
+python main.py
+```
+
+Controls: Arrow keys to move, E to interact, ESC to exit.
+
+## Adding New Games
+
+1. Copy `src/games/TEMPLATE_GAME.py` and implement your game logic
+2. Register it in `src/games/registry.py`
+3. See `HOW_TO_ADD_GAMES.md` for detailed instructions
+
+## Project Layout
+
+```
+gamemie/
+├── main.py                  # Game entry point
+├── config/settings.py       # Global settings
+├── src/
+│   ├── core/               # Player state, leaderboards
+│   ├── games/              # Game implementations
+│   └── ui/                 # Lobby, dialogs, loading screen
+├── assets/                 # Sprites, backgrounds, sounds
+└── data/leaderboards/      # Score storage (JSON)
+```
+
+See `PROJECT_STRUCTURE.md` for full layout.
