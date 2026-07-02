@@ -33,26 +33,23 @@ class ConfirmationDialog(arcade.View):
 
     def on_draw(self):
         """Draw the dialog."""
-        arcade.start_render()
+        self.clear()
 
         # Semi-transparent overlay
-        arcade.draw_rectangle_filled(
-            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
-            SCREEN_WIDTH, SCREEN_HEIGHT,
+        arcade.draw_rect_filled(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT),
             (0, 0, 0, 150)
         )
 
         # Dialog box
         dialog_x = SCREEN_WIDTH // 2
         dialog_y = SCREEN_HEIGHT // 2
-        arcade.draw_rectangle_outline(
-            dialog_x, dialog_y,
-            DIALOG_WIDTH, DIALOG_HEIGHT,
+        arcade.draw_rect_outline(
+            arcade.XYWH(dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT),
             arcade.color.WHITE, 2
         )
-        arcade.draw_rectangle_filled(
-            dialog_x, dialog_y,
-            DIALOG_WIDTH, DIALOG_HEIGHT,
+        arcade.draw_rect_filled(
+            arcade.XYWH(dialog_x, dialog_y, DIALOG_WIDTH, DIALOG_HEIGHT),
             arcade.color.DARK_SLATE_GRAY
         )
 
@@ -81,9 +78,9 @@ class ConfirmationDialog(arcade.View):
 
         # Buttons
         button_y = dialog_y - DIALOG_HEIGHT // 2 + 30
-        arcade.draw_rectangle_outline(
-            dialog_x - 80, button_y,
-            60, 30, arcade.color.GREEN, 2
+        arcade.draw_rect_outline(
+            arcade.XYWH(dialog_x - 80, button_y, 60, 30),
+            arcade.color.GREEN, 2
         )
         arcade.draw_text(
             "Play",
@@ -91,9 +88,9 @@ class ConfirmationDialog(arcade.View):
             font_size=12, color=arcade.color.GREEN, bold=True
         )
 
-        arcade.draw_rectangle_outline(
-            dialog_x + 80, button_y,
-            60, 30, arcade.color.RED, 2
+        arcade.draw_rect_outline(
+            arcade.XYWH(dialog_x + 80, button_y, 60, 30),
+            arcade.color.RED, 2
         )
         arcade.draw_text(
             "Cancel",
@@ -143,7 +140,7 @@ class LeaderboardView(arcade.View):
 
     def on_draw(self):
         """Draw the leaderboard."""
-        arcade.start_render()
+        self.clear()
 
         arcade.draw_text(
             self.title,

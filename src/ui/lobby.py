@@ -34,8 +34,8 @@ class ArcadeMachine:
         if is_near:
             color = arcade.color.YELLOW
 
-        arcade.draw_rectangle_filled(self.x, self.y, self.SIZE, self.SIZE, color)
-        arcade.draw_rectangle_outline(self.x, self.y, self.SIZE, self.SIZE, arcade.color.WHITE, 2)
+        arcade.draw_rect_filled(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), color)
+        arcade.draw_rect_outline(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), arcade.color.WHITE, 2)
         arcade.draw_text(
             self.machine_name[:8],
             self.x - 20, self.y - 10,
@@ -66,8 +66,8 @@ class Cashier:
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
         """Draw the cashier."""
         color = arcade.color.MAGENTA if is_near else arcade.color.LIGHT_CORAL
-        arcade.draw_rectangle_filled(self.x, self.y, self.SIZE, self.SIZE, color)
-        arcade.draw_rectangle_outline(self.x, self.y, self.SIZE, self.SIZE, arcade.color.WHITE, 2)
+        arcade.draw_rect_filled(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), color)
+        arcade.draw_rect_outline(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), arcade.color.WHITE, 2)
         arcade.draw_text(
             "CASHIER",
             self.x - 25, self.y - 10,
@@ -132,12 +132,11 @@ class LobbyView(arcade.View):
 
     def on_draw(self):
         """Render the lobby."""
-        arcade.start_render()
+        self.clear()
 
         # Draw background
-        arcade.draw_rectangle_filled(
-            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
-            SCREEN_WIDTH, SCREEN_HEIGHT,
+        arcade.draw_rect_filled(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT),
             self.background_color
         )
 

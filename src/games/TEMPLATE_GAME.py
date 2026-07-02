@@ -30,12 +30,11 @@ class MyCustomGame(BaseGame):
 
     def on_draw(self):
         """Render your game here."""
-        arcade.start_render()
+        self.clear()
 
         # Draw background
-        arcade.draw_rectangle_filled(
-            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
-            SCREEN_WIDTH, SCREEN_HEIGHT,
+        arcade.draw_rect_filled(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT),
             self.background_color
         )
 

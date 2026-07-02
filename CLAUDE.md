@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Tech Stack
 
-- **Language:** Python
-- **Game library:** [Python Arcade](https://api.arcade.academy/)
+- **Language:** Python 3.12+
+- **Game library:** [Pygame](https://www.pygame.org/) (better Windows compatibility than Arcade)
 
 ## Game Concept — Arcade Club (2D)
 
@@ -52,7 +52,7 @@ A separate launcher app (pre-game) handles:
 
 ```bash
 # Install dependencies (one time)
-pip install arcade
+pip install pygame
 
 # Run the game
 python main.py

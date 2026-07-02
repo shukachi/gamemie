@@ -22,7 +22,7 @@ class LoadingScreen(arcade.View):
 
     def on_draw(self):
         """Draw the loading screen."""
-        arcade.start_render()
+        self.clear()
 
         arcade.draw_text(
             "ARCADE CLUB",
@@ -40,14 +40,12 @@ class LoadingScreen(arcade.View):
         bar_width = 200
         bar_height = 10
         filled_width = (self.elapsed_time / self.duration) * bar_width
-        arcade.draw_rectangle_filled(
-            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50,
-            filled_width, bar_height,
+        arcade.draw_rect_filled(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50, filled_width, bar_height),
             arcade.color.LIGHT_BLUE
         )
-        arcade.draw_rectangle_outline(
-            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50,
-            bar_width, bar_height,
+        arcade.draw_rect_outline(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50, bar_width, bar_height),
             arcade.color.WHITE, 1
         )
 
