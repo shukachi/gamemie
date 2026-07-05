@@ -13,6 +13,7 @@ from src.core.player_state import PlayerState
 from src.core.leaderboard import Leaderboard
 from src.games.registry import GameRegistry
 from src.ui.dialogs import ConfirmationDialog, LeaderboardView
+from src.ui.player_sprite import PlayerSprite
 
 
 class ArcadeMachine:
@@ -90,9 +91,10 @@ class LobbyView(arcade.View):
         # Player
         self.player_x = SCREEN_WIDTH // 2
         self.player_y = SCREEN_HEIGHT // 2
-        self.player_size = 20
+        self.player_size = 30  # collision/interaction radius in pixels
         self.player_speed_x = 0
         self.player_speed_y = 0
+        self.player_sprite = PlayerSprite(self.player_x, self.player_y)
 
         # Game state
         self.player_state = PlayerState("Player")
@@ -152,8 +154,7 @@ class LobbyView(arcade.View):
         self.cashier.draw(self.player_x, self.player_y, cashier_near)
 
         # Draw player
-        arcade.draw_circle_filled(self.player_x, self.player_y, self.player_size, arcade.color.GREEN)
-        arcade.draw_circle_outline(self.player_x, self.player_y, self.player_size, arcade.color.WHITE, 2)
+        self.player_sprite.draw()
 
         # Draw UI
         arcade.draw_text(
@@ -178,6 +179,11 @@ class LobbyView(arcade.View):
         # Clamp player to screen
         self.player_x = max(self.player_size, min(SCREEN_WIDTH - self.player_size, self.player_x))
         self.player_y = max(self.player_size, min(SCREEN_HEIGHT - self.player_size, self.player_y))
+
+        # Sync sprite position and advance animation
+        self.player_sprite.x = self.player_x
+        self.player_sprite.y = self.player_y
+        self.player_sprite.update(delta_time, self.player_speed_x, self.player_speed_y)
 
     def on_key_press(self, key: int, modifiers: int):
         """Handle key press."""

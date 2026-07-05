@@ -25,7 +25,7 @@ class LoadingScreen(arcade.View):
         self.clear()
 
         arcade.draw_text(
-            "ARCADE CLUB",
+            "GAMEMIE ",
             SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 + 50,
             font_size=40, color=arcade.color.LIGHT_CYAN, bold=True
         )
