@@ -3,6 +3,7 @@ Main lobby scene.
 Player walks around and interacts with arcade machines and cashier.
 """
 
+import os
 import arcade
 import math
 from config.settings import (
@@ -54,25 +55,46 @@ class ArcadeMachine:
                 abs(y - self.y) < self.SIZE // 2)
 
 
+_CASHIER_TEXTURE = None
+
+def _get_cashier_texture() -> arcade.Texture:
+    global _CASHIER_TEXTURE
+    if _CASHIER_TEXTURE is None:
+        path = os.path.normpath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "assets", "sprites", "cashier", "cashier.png"
+        ))
+        _CASHIER_TEXTURE = arcade.load_texture(path)
+    return _CASHIER_TEXTURE
+
+
 class Cashier:
     """Represents the cashier NPC."""
 
-    SIZE = 50
-    INTERACTION_RANGE = 100
+    DRAW_W = 120    # display width in pixels
+    DRAW_H = 120   # display height (proportional to 256x256 source)
+    INTERACTION_RANGE = 90
 
     def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
+        self._texture = _get_cashier_texture()
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
-        """Draw the cashier."""
-        color = arcade.color.MAGENTA if is_near else arcade.color.LIGHT_CORAL
-        arcade.draw_rect_filled(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), color)
-        arcade.draw_rect_outline(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), arcade.color.WHITE, 2)
+        """Draw the cashier sprite with label above."""
+        alpha = 255 if not is_near else 200
+
+        arcade.draw_texture_rect(
+            self._texture,
+            arcade.XYWH(self.x, self.y, self.DRAW_W, self.DRAW_H),
+            alpha=alpha
+        )
+
+        # Label above the sprite
+        label_color = arcade.color.YELLOW if is_near else arcade.color.WHITE
         arcade.draw_text(
             "CASHIER",
-            self.x - 25, self.y - 10,
-            font_size=8, color=arcade.color.WHITE
+            self.x - 22, self.y + self.DRAW_H // 2 + 4,
+            font_size=9, color=label_color, bold=True
         )
 
     def is_player_nearby(self, player_x: float, player_y: float) -> bool:
@@ -86,7 +108,12 @@ class LobbyView(arcade.View):
 
     def __init__(self):
         super().__init__()
-        self.background_color = arcade.color.DARK_BLUE_GRAY
+        self.background_color = arcade.color.BLACK
+
+        bg_path = os.path.normpath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "assets", "backgrounds", "back_fon_game_club.webp"
+        ))
+        self.background_texture = arcade.load_texture(bg_path)
 
         # Player
         self.player_x = SCREEN_WIDTH // 2
@@ -106,7 +133,7 @@ class LobbyView(arcade.View):
         self._create_machines()
 
         # Cashier
-        self.cashier = Cashier(100, 100)
+        self.cashier = Cashier(105, 140)
 
         # UI state
         self.show_menu = False
@@ -137,9 +164,9 @@ class LobbyView(arcade.View):
         self.clear()
 
         # Draw background
-        arcade.draw_rect_filled(
-            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT),
-            self.background_color
+        arcade.draw_texture_rect(
+            self.background_texture,
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT)
         )
 
         # Draw machines

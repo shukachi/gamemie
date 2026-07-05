@@ -3,6 +3,7 @@ Loading screen.
 Shown at game startup.
 """
 
+import os
 import arcade
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
@@ -12,9 +13,14 @@ class LoadingScreen(arcade.View):
 
     def __init__(self):
         super().__init__()
-        self.background_color = arcade.color.DARK_BLUE_GRAY
+        self.background_color = arcade.color.BLACK
         self.elapsed_time = 0
         self.duration = 2.0  # 2 seconds
+
+        bg_path = os.path.normpath(os.path.join(
+            os.path.dirname(__file__), "..", "..", "assets", "backgrounds", "loading_background.jpg"
+        ))
+        self.background_texture = arcade.load_texture(bg_path)
 
     def on_show(self):
         """Screen initialization."""
@@ -24,9 +30,14 @@ class LoadingScreen(arcade.View):
         """Draw the loading screen."""
         self.clear()
 
+        arcade.draw_texture_rect(
+            self.background_texture,
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT)
+        )
+
         arcade.draw_text(
             "GAMEMIE ",
-            SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 + 50,
+            SCREEN_WIDTH // 2 - 120, SCREEN_HEIGHT // 2 + 50,
             font_size=40, color=arcade.color.LIGHT_CYAN, bold=True
         )
 
@@ -34,6 +45,12 @@ class LoadingScreen(arcade.View):
             "Loading...",
             SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT // 2,
             font_size=20, color=arcade.color.WHITE
+        )
+
+        arcade.draw_text(
+            "ALL RIGHTS RESERVED, TM \"SSD\" ©",
+            SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 - 100,
+            font_size=15, color=arcade.color.WHITE
         )
 
         # Progress bar
