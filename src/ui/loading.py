@@ -14,12 +14,14 @@ class LoadingScreen(arcade.View):
         super().__init__()
         self.background_color = arcade.color.BLACK
         self.elapsed_time = 0
-        self.duration = 2.0  # 2 seconds
+        self.duration = 4.0
         self.background_texture = arcade.load_texture(":backgrounds:loading_background.jpg")
+        self._music = arcade.load_sound(":sounds:loading_music.mp3")
+        self._music_player = None
 
-    def on_show(self):
-        """Screen initialization."""
+    def on_show_view(self):
         self.elapsed_time = 0
+        self._music_player = arcade.play_sound(self._music)
 
     def on_draw(self):
         """Draw the loading screen."""
@@ -52,8 +54,9 @@ class LoadingScreen(arcade.View):
         bar_width = 200
         bar_height = 10
         filled_width = (self.elapsed_time / self.duration) * bar_width
+        bar_left = SCREEN_WIDTH // 2 - bar_width // 2
         arcade.draw_rect_filled(
-            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50, filled_width, bar_height),
+            arcade.XYWH(bar_left + filled_width / 2, SCREEN_HEIGHT // 2 - 50, filled_width, bar_height),
             arcade.color.LIGHT_BLUE
         )
         arcade.draw_rect_outline(
@@ -65,5 +68,7 @@ class LoadingScreen(arcade.View):
         """Update loading progress."""
         self.elapsed_time += delta_time
         if self.elapsed_time >= self.duration:
+            if self._music_player:
+                arcade.stop_sound(self._music_player)
             from src.ui.lobby import LobbyView
             self.window.show_view(LobbyView())

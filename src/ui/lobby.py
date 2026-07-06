@@ -5,6 +5,7 @@ Player walks around and interacts with arcade machines and cashier.
 
 import arcade
 import math
+from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_SPEED
 
 # Interaction zone centres as fractions of (SCREEN_WIDTH, SCREEN_HEIGHT).
@@ -111,10 +112,12 @@ class LobbyView(arcade.View):
         # Player
         self.player_x = SCREEN_WIDTH // 2
         self.player_y = SCREEN_HEIGHT // 2
-        self.player_size = 30  # collision/interaction radius in pixels
+        self.player_size = 30
         self.player_speed_x = 0
         self.player_speed_y = 0
         self.player_sprite = PlayerSprite(self.player_x, self.player_y)
+        self.target_x: float | None = None  # mouse-click walk target
+        self.target_y: float | None = None
 
         # Game state
         self.player_state = PlayerState("Player")
@@ -211,6 +214,18 @@ class LobbyView(arcade.View):
     def on_update(self, delta_time: float):
         """Update lobby logic."""
         # Update player position
+        # Mouse-click walk-to-target
+        if self.target_x is not None:
+            dx = self.target_x - self.player_x
+            dy = self.target_y - self.player_y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist < 6:
+                self.target_x = self.target_y = None
+                self.player_speed_x = self.player_speed_y = 0
+            else:
+                self.player_speed_x = dx / dist
+                self.player_speed_y = dy / dist
+
         self.player_x += self.player_speed_x * PLAYER_SPEED * delta_time
         self.player_y += self.player_speed_y * PLAYER_SPEED * delta_time
 
@@ -224,24 +239,35 @@ class LobbyView(arcade.View):
         self.player_sprite.update(delta_time, self.player_speed_x, self.player_speed_y)
 
     def on_key_press(self, key: int, modifiers: int):
-        """Handle key press."""
-        if key == arcade.key.W:
+        kb = cfg.KEY_BINDINGS
+        if key == kb['up']:
             self.player_speed_y = 1
-        elif key == arcade.key.S:
+            self.target_x = self.target_y = None
+        elif key == kb['down']:
             self.player_speed_y = -1
-        elif key == arcade.key.A:
+            self.target_x = self.target_y = None
+        elif key == kb['left']:
             self.player_speed_x = -1
-        elif key == arcade.key.D:
+            self.target_x = self.target_y = None
+        elif key == kb['right']:
             self.player_speed_x = 1
-        elif key == arcade.key.E:
+            self.target_x = self.target_y = None
+        elif key == kb['interact']:
             self._handle_interaction()
 
     def on_key_release(self, key: int, modifiers: int):
-        """Handle key release."""
-        if key == arcade.key.W or key == arcade.key.S:
+        kb = cfg.KEY_BINDINGS
+        if key == kb['up'] or key == kb['down']:
             self.player_speed_y = 0
-        elif key == arcade.key.D or key == arcade.key.A:
+        elif key == kb['left'] or key == kb['right']:
             self.player_speed_x = 0
+
+    def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
+        if cfg.MOUSE_CONTROL and button == arcade.MOUSE_BUTTON_LEFT:
+            self.target_x = float(x)
+            self.target_y = float(y)
+            self.player_speed_x = 0
+            self.player_speed_y = 0
 
     def _handle_interaction(self):
         """Handle player interaction with machines or cashier."""
@@ -292,16 +318,5 @@ class LobbyView(arcade.View):
             self.window.show_view(game)
 
     def _show_cashier_menu(self):
-        """Show cashier menu (placeholder)."""
-        if self.player_state.all_machines_locked():
-            self.player_state.reset_all_attempts()
-            print("All attempts reset!")
-        else:
-            # Show leaderboard or other menu options
-            leaderboard_entries = self.leaderboard.get_global_leaderboard()
-
-            def on_close():
-                self.window.show_view(self)
-
-            leaderboard_view = LeaderboardView("Club Leaderboard", leaderboard_entries, on_close)
-            self.window.show_view(leaderboard_view)
+        from src.ui.controls_dialog import CashierMenuView
+        self.window.show_view(CashierMenuView(self.player_state, self.leaderboard, self))
