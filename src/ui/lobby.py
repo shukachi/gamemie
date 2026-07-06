@@ -3,7 +3,6 @@ Main lobby scene.
 Player walks around and interacts with arcade machines and cashier.
 """
 
-import os
 import arcade
 import math
 from config.settings import (
@@ -60,10 +59,7 @@ _CASHIER_TEXTURE = None
 def _get_cashier_texture() -> arcade.Texture:
     global _CASHIER_TEXTURE
     if _CASHIER_TEXTURE is None:
-        path = os.path.normpath(os.path.join(
-            os.path.dirname(__file__), "..", "..", "assets", "sprites", "cashier", "cashier.png"
-        ))
-        _CASHIER_TEXTURE = arcade.load_texture(path)
+        _CASHIER_TEXTURE = arcade.load_texture(":cashier:cashier.png")
     return _CASHIER_TEXTURE
 
 
@@ -110,10 +106,7 @@ class LobbyView(arcade.View):
         super().__init__()
         self.background_color = arcade.color.BLACK
 
-        bg_path = os.path.normpath(os.path.join(
-            os.path.dirname(__file__), "..", "..", "assets", "backgrounds", "back_fon_game_club.webp"
-        ))
-        self.background_texture = arcade.load_texture(bg_path)
+        self.background_texture = arcade.load_texture(":backgrounds:back_fon_game_club.webp")
 
         # Player
         self.player_x = SCREEN_WIDTH // 2
@@ -135,6 +128,10 @@ class LobbyView(arcade.View):
         # Cashier
         self.cashier = Cashier(105, 140)
 
+        # Music
+        self.music = arcade.load_sound(":sounds:lobby_music.mp3")
+        self.music_player = None
+
         # UI state
         self.show_menu = False
         self.show_global_leaderboard = False
@@ -155,9 +152,14 @@ class LobbyView(arcade.View):
             machine = ArcadeMachine(machine_id, machine_def['name'], x, y)
             self.machines.append(machine)
 
-    def on_show(self):
-        """View initialization."""
-        pass
+    def on_show_view(self):
+        if not self.music_player:
+            self.music_player = arcade.play_sound(self.music, loop=True)
+
+    def on_hide_view(self):
+        if self.music_player:
+            arcade.stop_sound(self.music_player)
+            self.music_player = None
 
     def on_draw(self):
         """Render the lobby."""
@@ -214,22 +216,22 @@ class LobbyView(arcade.View):
 
     def on_key_press(self, key: int, modifiers: int):
         """Handle key press."""
-        if key == arcade.key.UP:
+        if key == arcade.key.W:
             self.player_speed_y = 1
-        elif key == arcade.key.DOWN:
+        elif key == arcade.key.S:
             self.player_speed_y = -1
-        elif key == arcade.key.LEFT:
+        elif key == arcade.key.A:
             self.player_speed_x = -1
-        elif key == arcade.key.RIGHT:
+        elif key == arcade.key.D:
             self.player_speed_x = 1
         elif key == arcade.key.E:
             self._handle_interaction()
 
     def on_key_release(self, key: int, modifiers: int):
         """Handle key release."""
-        if key == arcade.key.UP or key == arcade.key.DOWN:
+        if key == arcade.key.W or key == arcade.key.S:
             self.player_speed_y = 0
-        elif key == arcade.key.LEFT or key == arcade.key.RIGHT:
+        elif key == arcade.key.D or key == arcade.key.A:
             self.player_speed_x = 0
 
     def _handle_interaction(self):

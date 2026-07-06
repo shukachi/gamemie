@@ -3,7 +3,6 @@ Loading screen.
 Shown at game startup.
 """
 
-import os
 import arcade
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
@@ -16,11 +15,7 @@ class LoadingScreen(arcade.View):
         self.background_color = arcade.color.BLACK
         self.elapsed_time = 0
         self.duration = 2.0  # 2 seconds
-
-        bg_path = os.path.normpath(os.path.join(
-            os.path.dirname(__file__), "..", "..", "assets", "backgrounds", "loading_background.jpg"
-        ))
-        self.background_texture = arcade.load_texture(bg_path)
+        self.background_texture = arcade.load_texture(":backgrounds:loading_background.jpg")
 
     def on_show(self):
         """Screen initialization."""

@@ -2,14 +2,23 @@
 Main entry point for the game.
 """
 
+import os
 import arcade
-import sys
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, FPS
 from src.ui.loading import LoadingScreen
 
 
+def _register_resources() -> None:
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    arcade.resources.add_resource_handle("backgrounds", os.path.join(BASE, "assets", "backgrounds"))
+    arcade.resources.add_resource_handle("player", os.path.join(BASE, "assets", "sprites", "player"))
+    arcade.resources.add_resource_handle("cashier", os.path.join(BASE, "assets", "sprites", "cashier"))
+    arcade.resources.add_resource_handle("sounds", os.path.join(BASE, "assets", "sounds"))
+
+
 def main():
     """Create and run the arcade window."""
+    _register_resources()
     window = arcade.Window(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
     window.set_update_rate(1 / FPS)
 

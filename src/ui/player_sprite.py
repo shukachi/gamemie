@@ -1,6 +1,6 @@
 """Player sprite with directional walking animation from an 8x4 spritesheet."""
 
-import os
+from pathlib import Path
 from PIL import Image
 import arcade
 
@@ -17,12 +17,8 @@ _DIRECTION_ROW = {
     "up":    3,
 }
 
-_SRC_PATH = os.path.normpath(os.path.join(
-    os.path.dirname(__file__), "..", "..", "assets", "sprites", "player", "girl_sprite.png"
-))
-_FIXED_PATH = os.path.normpath(os.path.join(
-    os.path.dirname(__file__), "..", "..", "assets", "sprites", "player", "girl_sprite_fixed.png"
-))
+_SRC_HANDLE  = ":player:girl_sprite.png"
+_FIXED_HANDLE = ":player:girl_sprite_fixed.png"
 
 
 def _detect_frame_centers(img: Image.Image, row: int) -> list[int]:
@@ -56,7 +52,7 @@ def _detect_frame_centers(img: Image.Image, row: int) -> list[int]:
     return [(a + b) // 2 for a, b in regions]
 
 
-def _build_fixed_sheet(src: str, dst: str) -> None:
+def _build_fixed_sheet(src: Path, dst: Path) -> None:
     """
     Rebuild the sprite sheet so every frame is a properly-centred FRAME_W x FRAME_H cell.
     The original sheet has 6 characters per row, unevenly spaced — this fixes that.
@@ -88,11 +84,13 @@ class PlayerSprite:
         self.y = y
         self.scale = scale
 
-        # Build the normalised sheet once, then cache it
-        if not os.path.exists(_FIXED_PATH):
-            _build_fixed_sheet(_SRC_PATH, _FIXED_PATH)
+        src_path  = arcade.resources.resolve_resource_path(_SRC_HANDLE)
+        fixed_path = arcade.resources.resolve_resource_path(_FIXED_HANDLE)
 
-        sheet = arcade.load_spritesheet(_FIXED_PATH)
+        if not fixed_path.exists():
+            _build_fixed_sheet(src_path, fixed_path)
+
+        sheet = arcade.load_spritesheet(_FIXED_HANDLE)
         all_frames = sheet.get_texture_grid(
             size=(FRAME_W, FRAME_H),
             columns=COLUMNS,
