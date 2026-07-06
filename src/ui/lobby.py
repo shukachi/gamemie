@@ -130,7 +130,9 @@ class LobbyView(arcade.View):
 
         # Music
         self.music = arcade.load_sound(":sounds:lobby_music.mp3")
+        self.music_settings = arcade.load_sound(":sounds:settings.mp3")
         self.music_player = None
+        self.settings_music_player = None
 
         # UI state
         self.show_menu = False
@@ -164,13 +166,18 @@ class LobbyView(arcade.View):
             self.machines.append(machine)
 
     def on_show_view(self):
-        if not self.music_player:
+        if self.settings_music_player:
+            arcade.stop_sound(self.settings_music_player)
+            self.settings_music_player = None
+        if self.music_player:
+            self.music_player.play()          # resume from paused position
+        else:
             self.music_player = arcade.play_sound(self.music, loop=True)
 
     def on_hide_view(self):
         if self.music_player:
-            arcade.stop_sound(self.music_player)
-            self.music_player = None
+            self.music_player.pause()         # pause, keep position
+        self.settings_music_player = arcade.play_sound(self.music_settings, loop=True)
 
     def on_draw(self):
         """Render the lobby."""
