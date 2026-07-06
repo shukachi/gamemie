@@ -44,19 +44,19 @@ class ArcadeMachine:
         self.locked = False
         self.zone_w = ZONE_W_FRAC * SCREEN_WIDTH
         self.zone_h = ZONE_H_FRAC * SCREEN_HEIGHT
+        offset = SCREEN_HEIGHT * 0.13
+        text_y = y - offset if y > SCREEN_HEIGHT / 2 else y + offset
+        self._play_text = arcade.Text(
+            "ИГРАТЬ", x=x, y=text_y,
+            color=(144, 238, 144), font_size=22, bold=True,
+            anchor_x="center", anchor_y="center",
+        )
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
         """Show 'ИГРАТЬ' prompt when player is inside the interaction zone."""
         if not is_near or self.locked:
             return
-        offset = SCREEN_HEIGHT * 0.13
-        text_y = self.y - offset if self.y > SCREEN_HEIGHT / 2 else self.y + offset
-        arcade.draw_text(
-            "ИГРАТЬ",
-            self.x, text_y,
-            font_size=22, color=(144, 238, 144), bold=True,
-            anchor_x="center", anchor_y="center",
-        )
+        self._play_text.draw()
 
     def is_player_nearby(self, player_x: float, player_y: float) -> bool:
         """Check if player is inside the rectangular interaction zone."""
@@ -82,17 +82,16 @@ class Cashier:
         self._sprite.center_y = y
         self._sprite.width = self.DRAW_W
         self._sprite.height = self.DRAW_H
+        self._label = arcade.Text(
+            "CASHIER", x=x - 22, y=y + self.DRAW_H // 2 + 4,
+            color=arcade.color.WHITE, font_size=9, bold=True,
+        )
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
         """Draw the cashier sprite with label above."""
         arcade.draw_sprite(self._sprite)
-
-        label_color = arcade.color.YELLOW if is_near else arcade.color.WHITE
-        arcade.draw_text(
-            "CASHIER",
-            self.x - 22, self.y + self.DRAW_H // 2 + 4,
-            font_size=9, color=label_color, bold=True
-        )
+        self._label.color = arcade.color.YELLOW if is_near else arcade.color.WHITE
+        self._label.draw()
 
     def is_player_nearby(self, player_x: float, player_y: float) -> bool:
         """Check if player is close enough to interact."""
@@ -136,6 +135,17 @@ class LobbyView(arcade.View):
         # UI state
         self.show_menu = False
         self.show_global_leaderboard = False
+
+        # Text objects (fast rendering)
+        self._score_text = arcade.Text(
+            "Score: 0", x=10, y=SCREEN_HEIGHT - 20,
+            color=arcade.color.WHITE, font_size=14, bold=True,
+        )
+        self._instructions_text = arcade.Text(
+            "WASD — движение  |  E — взаимодействие",
+            x=10, y=10,
+            color=arcade.color.LIGHT_GRAY, font_size=10,
+        )
 
     def _create_machines(self):
         """Create arcade machines positioned to match the background art."""
@@ -187,18 +197,9 @@ class LobbyView(arcade.View):
         self.player_sprite.draw()
 
         # Draw UI
-        arcade.draw_text(
-            f"Score: {self.player_state.total_score}",
-            10, SCREEN_HEIGHT - 20,
-            font_size=14, color=arcade.color.WHITE, bold=True
-        )
-
-        # Draw instructions
-        arcade.draw_text(
-            "WASD — движение  |  E — взаимодействие",
-            10, 10,
-            font_size=10, color=arcade.color.LIGHT_GRAY
-        )
+        self._score_text.text = f"Score: {self.player_state.total_score}"
+        self._score_text.draw()
+        self._instructions_text.draw()
 
     def on_update(self, delta_time: float):
         """Update lobby logic."""

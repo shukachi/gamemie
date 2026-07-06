@@ -84,8 +84,8 @@ class PlayerSprite:
         self.y = y
         self.scale = scale
 
-        src_path  = arcade.resources.resolve_resource_path(_SRC_HANDLE)
-        fixed_path = arcade.resources.resolve_resource_path(_FIXED_HANDLE)
+        src_path  = arcade.resources.resolve(_SRC_HANDLE)
+        fixed_path = arcade.resources.resolve(_FIXED_HANDLE)
 
         if not fixed_path.exists():
             _build_fixed_sheet(src_path, fixed_path)
