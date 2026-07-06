@@ -11,21 +11,8 @@ class GameRegistry:
 
     # Machine definitions
     MACHINES = [
-        {
-            'id': 'demo_1',
-            'name': 'Demo Game 1',
-            'game_class': DemoGame,
-        },
-        {
-            'id': 'demo_2',
-            'name': 'Demo Game 2',
-            'game_class': DemoGame,
-        },
-        {
-            'id': 'demo_3',
-            'name': 'Demo Game 3',
-            'game_class': DemoGame,
-        },
+        {'id': f'demo_{i}', 'name': f'Demo Game {i}', 'game_class': DemoGame}
+        for i in range(1, 11)
     ]
 
     @classmethod

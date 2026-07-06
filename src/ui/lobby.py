@@ -5,10 +5,27 @@ Player walks around and interacts with arcade machines and cashier.
 
 import arcade
 import math
-from config.settings import (
-    SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_SPEED, MACHINES_PER_ROW,
-    MACHINE_SPACING_X, MACHINE_SPACING_Y, MACHINE_START_X, MACHINE_START_Y
-)
+from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_SPEED
+
+# Interaction zone centres as fractions of (SCREEN_WIDTH, SCREEN_HEIGHT).
+# Measured from fix.png (614×347 screenshot of 1280×720 game).
+# 5 machines top row, 5 bottom row — first top-left position is decorative, no zone.
+ZONE_POSITIONS = [
+    # --- top row (left → right) ---
+    (0.180, 0.890),
+    (0.343, 0.890),
+    (0.505, 0.890),
+    (0.625, 0.890),
+    (0.810, 0.890),
+    # --- bottom row (left → right) ---
+    (0.180, 0.120),
+    (0.343, 0.120),
+    (0.505, 0.120),
+    (0.625, 0.120),
+    (0.810, 0.120),
+]
+ZONE_W_FRAC = 0.082  # matches machine sprite width  (~105 px at 1280)
+ZONE_H_FRAC = 0.125  # matches machine sprite height (~90 px at 720)
 from src.core.player_state import PlayerState
 from src.core.leaderboard import Leaderboard
 from src.games.registry import GameRegistry
@@ -19,73 +36,57 @@ from src.ui.player_sprite import PlayerSprite
 class ArcadeMachine:
     """Represents an arcade machine in the lobby."""
 
-    SIZE = 60  # Sprite size
-    INTERACTION_RANGE = 100
-
     def __init__(self, machine_id: str, machine_name: str, x: float, y: float):
         self.machine_id = machine_id
         self.machine_name = machine_name
         self.x = x
         self.y = y
         self.locked = False
+        self.zone_w = ZONE_W_FRAC * SCREEN_WIDTH
+        self.zone_h = ZONE_H_FRAC * SCREEN_HEIGHT
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
-        """Draw the machine."""
-        color = arcade.color.RED if self.locked else arcade.color.CYAN
-        if is_near:
-            color = arcade.color.YELLOW
-
-        arcade.draw_rect_filled(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), color)
-        arcade.draw_rect_outline(arcade.XYWH(self.x, self.y, self.SIZE, self.SIZE), arcade.color.WHITE, 2)
+        """Show 'ИГРАТЬ' prompt when player is inside the interaction zone."""
+        if not is_near or self.locked:
+            return
+        offset = SCREEN_HEIGHT * 0.13
+        text_y = self.y - offset if self.y > SCREEN_HEIGHT / 2 else self.y + offset
         arcade.draw_text(
-            self.machine_name[:8],
-            self.x - 20, self.y - 10,
-            font_size=8, color=arcade.color.BLACK
+            "ИГРАТЬ",
+            self.x, text_y,
+            font_size=22, color=(144, 238, 144), bold=True,
+            anchor_x="center", anchor_y="center",
         )
 
     def is_player_nearby(self, player_x: float, player_y: float) -> bool:
-        """Check if player is close enough to interact."""
-        distance = math.sqrt((player_x - self.x) ** 2 + (player_y - self.y) ** 2)
-        return distance < self.INTERACTION_RANGE
+        """Check if player is inside the rectangular interaction zone."""
+        return (abs(player_x - self.x) < self.zone_w / 2 and
+                abs(player_y - self.y) < self.zone_h / 2)
 
     def contains_point(self, x: float, y: float) -> bool:
-        """Check if point is inside machine."""
-        return (abs(x - self.x) < self.SIZE // 2 and
-                abs(y - self.y) < self.SIZE // 2)
-
-
-_CASHIER_TEXTURE = None
-
-def _get_cashier_texture() -> arcade.Texture:
-    global _CASHIER_TEXTURE
-    if _CASHIER_TEXTURE is None:
-        _CASHIER_TEXTURE = arcade.load_texture(":cashier:cashier.png")
-    return _CASHIER_TEXTURE
+        return self.is_player_nearby(x, y)
 
 
 class Cashier:
     """Represents the cashier NPC."""
 
-    DRAW_W = 120    # display width in pixels
-    DRAW_H = 120   # display height (proportional to 256x256 source)
+    DRAW_W = 120
+    DRAW_H = 120
     INTERACTION_RANGE = 90
 
     def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
-        self._texture = _get_cashier_texture()
+        self._sprite = arcade.Sprite(":cashier:cashier.png")
+        self._sprite.center_x = x
+        self._sprite.center_y = y
+        self._sprite.width = self.DRAW_W
+        self._sprite.height = self.DRAW_H
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
         """Draw the cashier sprite with label above."""
-        alpha = 255 if not is_near else 200
+        arcade.draw_sprite(self._sprite)
 
-        arcade.draw_texture_rect(
-            self._texture,
-            arcade.XYWH(self.x, self.y, self.DRAW_W, self.DRAW_H),
-            alpha=alpha
-        )
-
-        # Label above the sprite
         label_color = arcade.color.YELLOW if is_near else arcade.color.WHITE
         arcade.draw_text(
             "CASHIER",
@@ -126,7 +127,7 @@ class LobbyView(arcade.View):
         self._create_machines()
 
         # Cashier
-        self.cashier = Cashier(105, 140)
+        self.cashier = Cashier(SCREEN_WIDTH // 12.19, SCREEN_HEIGHT // 5.14)
 
         # Music
         self.music = arcade.load_sound(":sounds:lobby_music.mp3")
@@ -137,19 +138,19 @@ class LobbyView(arcade.View):
         self.show_global_leaderboard = False
 
     def _create_machines(self):
-        """Create arcade machines in the lobby."""
+        """Create arcade machines positioned to match the background art."""
         machine_ids = self.registry.get_machine_ids()
         self.player_state.initialize_machines(machine_ids)
 
         for i, machine_id in enumerate(machine_ids):
+            if i >= len(ZONE_POSITIONS):
+                break
             machine_def = self.registry.get_machine(machine_id)
-            row = i // MACHINES_PER_ROW
-            col = i % MACHINES_PER_ROW
-
-            x = MACHINE_START_X + col * MACHINE_SPACING_X
-            y = SCREEN_HEIGHT - MACHINE_START_Y - row * MACHINE_SPACING_Y
-
-            machine = ArcadeMachine(machine_id, machine_def['name'], x, y)
+            x_frac, y_frac = ZONE_POSITIONS[i]
+            machine = ArcadeMachine(
+                machine_id, machine_def['name'],
+                x_frac * SCREEN_WIDTH, y_frac * SCREEN_HEIGHT,
+            )
             self.machines.append(machine)
 
     def on_show_view(self):
@@ -194,7 +195,7 @@ class LobbyView(arcade.View):
 
         # Draw instructions
         arcade.draw_text(
-            "Arrow keys to move | Press E to interact with nearby machines/cashier",
+            "WASD — движение  |  E — взаимодействие",
             10, 10,
             font_size=10, color=arcade.color.LIGHT_GRAY
         )
