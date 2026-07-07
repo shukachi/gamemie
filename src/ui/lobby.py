@@ -137,6 +137,13 @@ class LobbyView(arcade.View):
         self.music_player = None
         self.settings_music_player = None
 
+        # Zone entry sound
+        self._hm_sound = arcade.load_sound(":sounds:hm_new.mp3")
+        self._hm_last_played: float = -999.0  # seconds since lobby start
+        self._hm_elapsed: float = 0.0
+        self._zones_near_prev: set[str] = set()  # ids of zones player was in last frame
+        self._hm_player = None  # keep reference to prevent GC killing playback
+
         # UI state
         self.show_menu = False
         self.show_global_leaderboard = False
@@ -173,14 +180,17 @@ class LobbyView(arcade.View):
             arcade.stop_sound(self.settings_music_player)
             self.settings_music_player = None
         if self.music_player:
-            self.music_player.play()          # resume from paused position
+            self.music_player.play()
         else:
             self.music_player = arcade.play_sound(self.music, loop=True)
+        self.music_player.volume = cfg.LOBBY_MUSIC_VOLUME
+        self._zones_near_prev = set()
 
     def on_hide_view(self):
         if self.music_player:
-            self.music_player.pause()         # pause, keep position
+            self.music_player.pause()
         self.settings_music_player = arcade.play_sound(self.music_settings, loop=True)
+        self.settings_music_player.volume = cfg.SETTINGS_MUSIC_VOLUME
 
     def on_draw(self):
         """Render the lobby."""
@@ -238,6 +248,22 @@ class LobbyView(arcade.View):
         self.player_sprite.y = self.player_y
         self.player_sprite.update(delta_time, self.player_speed_x, self.player_speed_y)
 
+        # Zone entry sound (hm.ogg) with 2-second cooldown
+        self._hm_elapsed += delta_time
+        zones_near_now: set[str] = set()
+        for machine in self.machines:
+            if machine.is_player_nearby(self.player_x, self.player_y):
+                zones_near_now.add(machine.machine_id)
+        if self.cashier.is_player_nearby(self.player_x, self.player_y):
+            zones_near_now.add("cashier")
+
+        newly_entered = zones_near_now - self._zones_near_prev
+        if newly_entered and (self._hm_elapsed - self._hm_last_played) >= 2.0:
+            self._hm_player = arcade.play_sound(self._hm_sound, volume=1.0)
+            self._hm_last_played = self._hm_elapsed
+
+        self._zones_near_prev = zones_near_now
+
     def on_key_press(self, key: int, modifiers: int):
         kb = cfg.KEY_BINDINGS
         if key == kb['up']:
@@ -254,6 +280,8 @@ class LobbyView(arcade.View):
             self.target_x = self.target_y = None
         elif key == kb['interact']:
             self._handle_interaction()
+        elif key == arcade.key.H:
+            self._hm_player = arcade.play_sound(self._hm_sound, volume=1.0)
 
     def on_key_release(self, key: int, modifiers: int):
         kb = cfg.KEY_BINDINGS

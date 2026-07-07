@@ -2,6 +2,8 @@
 Game configuration.
 Resolution, brightness, and other display settings.
 """
+import json
+import os
 import arcade
 
 SCREEN_WIDTH = 1280
@@ -10,7 +12,12 @@ SCREEN_TITLE = "Arcade Club"
 
 # Graphics
 BRIGHTNESS = 1.0
-FULLSCREEN = False
+FULLSCREEN = True
+RESOLUTION = (1280, 720)  # used in windowed mode
+
+# Sound
+LOBBY_MUSIC_VOLUME = 0.5
+SETTINGS_MUSIC_VOLUME = 0.5
 
 # Game
 FPS = 60
@@ -41,3 +48,36 @@ KEY_BINDINGS = {
 
 # Mouse control flag
 MOUSE_CONTROL = False
+
+# ── Persistence ───────────────────────────────────────────────────────
+_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "data", "settings.json")
+
+
+def save_settings() -> None:
+    global FULLSCREEN, RESOLUTION, LOBBY_MUSIC_VOLUME, SETTINGS_MUSIC_VOLUME
+    os.makedirs(os.path.dirname(_FILE), exist_ok=True)
+    with open(_FILE, "w", encoding="utf-8") as f:
+        json.dump({
+            "fullscreen": FULLSCREEN,
+            "resolution": list(RESOLUTION),
+            "lobby_music_volume": LOBBY_MUSIC_VOLUME,
+            "settings_music_volume": SETTINGS_MUSIC_VOLUME,
+        }, f)
+
+
+def load_settings() -> None:
+    global FULLSCREEN, RESOLUTION, LOBBY_MUSIC_VOLUME, SETTINGS_MUSIC_VOLUME
+    if not os.path.exists(_FILE):
+        return
+    try:
+        with open(_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        FULLSCREEN = bool(data.get("fullscreen", FULLSCREEN))
+        res = data.get("resolution")
+        if res and len(res) == 2:
+            RESOLUTION = tuple(res)
+        LOBBY_MUSIC_VOLUME = float(data.get("lobby_music_volume", LOBBY_MUSIC_VOLUME))
+        SETTINGS_MUSIC_VOLUME = float(data.get("settings_music_volume", SETTINGS_MUSIC_VOLUME))
+    except Exception:
+        pass
