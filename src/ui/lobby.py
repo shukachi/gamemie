@@ -91,7 +91,7 @@ class Cashier:
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
         """Draw the cashier sprite with label above."""
         arcade.draw_sprite(self._sprite)
-        self._label.color = arcade.color.YELLOW if is_near else arcade.color.WHITE
+        self._label.color = arcade.color.GREEN if is_near else arcade.color.WHITE
         self._label.draw()
 
     def is_player_nearby(self, player_x: float, player_y: float) -> bool:
