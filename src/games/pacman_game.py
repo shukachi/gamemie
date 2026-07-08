@@ -1,6 +1,8 @@
 """
 Pac-Man arcade game integrated as a BaseGame view.
 Uses arcade.Text objects for all text rendering (no draw_text).
+Ghosts become normal immediately after being eaten and remain immune
+until the energizer effect ends.
 """
 
 import arcade
@@ -184,6 +186,7 @@ class Pacman:
     def set_next_direction(self, dcol, drow):
         self.next_direction = (dcol, drow)
 
+
 class Ghost:
     def __init__(self, col, row, color, rows, cols):
         self.home_col = col
@@ -195,11 +198,14 @@ class Ghost:
         self.color = color
         self.scared = False
         self.respawn_timer = 0.0
+        self.force_normal = False    # не пугается до конца текущего scare
         self.rows = rows
         self.cols = cols
 
     def update(self, dt, scared_mode, map_data):
-        self.scared = scared_mode
+        # Призрак, съеденный во время scare, игнорирует страх
+        effective_scared = scared_mode and not self.force_normal
+
         if self.respawn_timer > 0:
             self.respawn_timer -= dt
             if self.respawn_timer <= 0:
@@ -212,9 +218,12 @@ class Ghost:
                     self.direction = random.choice(possible)
                 else:
                     self.direction = (0, 0)
+            self.scared = effective_scared
             return
 
-        speed = GHOST_SCARED_SPEED if scared_mode else GHOST_SPEED
+        speed = GHOST_SCARED_SPEED if effective_scared else GHOST_SPEED
+        self.scared = effective_scared
+
         if self.direction == (0, 0):
             return
 
@@ -254,6 +263,9 @@ class Ghost:
         self.center_x, self.center_y = tile_to_pixel(self.col, self.row, self.rows, self.cols)
         self.direction = (0, 0)
         self.respawn_timer = 5.0
+        self.scared = False
+        self.force_normal = True   # больше не пугается до окончания scare
+
 
 # ----------------------------------------------------------------------
 # Main Game View
@@ -291,44 +303,40 @@ class PacmanGame(BaseGame):
         self.countdown_timer = 0.0
 
         # ---------- Text objects ----------
-        self._menu_title = arcade.Text("PAC-MAN", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+180,
+        cx = SCREEN_WIDTH // 2
+        cy = SCREEN_HEIGHT // 2
+        self._menu_title = arcade.Text("PAC-MAN", cx, cy + 180,
                                        arcade.color.YELLOW, 48, anchor_x="center")
-        self._menu_subtitle = arcade.Text("Выберите сложность", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+130,
+        self._menu_subtitle = arcade.Text("Выберите сложность", cx, cy + 130,
                                           arcade.color.WHITE, 20, anchor_x="center")
-        self._lb_title = arcade.Text("Local Leaderboard", SCREEN_WIDTH//2, SCREEN_HEIGHT-40,
+        self._lb_title = arcade.Text("Local Leaderboard", cx, SCREEN_HEIGHT - 40,
                                      arcade.color.YELLOW, 32, anchor_x="center")
-        self._lb_hint = arcade.Text("Press BACKSPACE to return", SCREEN_WIDTH//2, 30,
+        self._lb_hint = arcade.Text("Press BACKSPACE to return", cx, 30,
                                     arcade.color.WHITE, 14, anchor_x="center")
         self._lb_level_titles = [
             arcade.Text("Easy", 0, 0, arcade.color.ORANGE, 22, anchor_x="center"),
             arcade.Text("Medium", 0, 0, arcade.color.ORANGE, 22, anchor_x="center"),
             arcade.Text("Hard", 0, 0, arcade.color.ORANGE, 22, anchor_x="center")
         ]
-        self._score_text = arcade.Text("Score: 0", 10, SCREEN_HEIGHT-30,
+        self._score_text = arcade.Text("Score: 0", 10, SCREEN_HEIGHT - 30,
                                        arcade.color.WHITE, 16)
-        self._lives_text = arcade.Text("Lives: 3", 10, SCREEN_HEIGHT-50,
+        self._lives_text = arcade.Text("Lives: 3", 10, SCREEN_HEIGHT - 50,
                                        arcade.color.WHITE, 16)
-        self._boost_text = arcade.Text("", 10, SCREEN_HEIGHT-70,
+        self._boost_text = arcade.Text("", 10, SCREEN_HEIGHT - 70,
                                        arcade.color.GREEN, 14)
-        self._countdown_text = arcade.Text("", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+GRID_OFFSET_Y//2,
+        self._countdown_text = arcade.Text("", cx, cy + GRID_OFFSET_Y // 2,
                                            arcade.color.YELLOW, 72, anchor_x="center")
-        self._enter_name_title = arcade.Text("New High Score!", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+100,
+        self._enter_name_title = arcade.Text("New High Score!", cx, cy + 100,
                                              arcade.color.GREEN, 22, anchor_x="center")
-        self._enter_name_prompt = arcade.Text("Enter name and press ENTER:", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+50,
+        self._enter_name_prompt = arcade.Text("Enter name and press ENTER:", cx, cy + 50,
                                               arcade.color.WHITE, 18, anchor_x="center")
-        self._entered_name_text = arcade.Text("", SCREEN_WIDTH//2, SCREEN_HEIGHT//2,
+        self._entered_name_text = arcade.Text("", cx, cy,
                                               arcade.color.WHITE, 18, anchor_x="center")
-        self._postgame_title = arcade.Text("", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+40,
+        self._postgame_title = arcade.Text("", cx, cy + 40,
                                            arcade.color.WHITE, 28, anchor_x="center")
         self._postgame_button_texts = [
             arcade.Text("Play Again", 0, 0, arcade.color.WHITE, 14, anchor_x="center"),
             arcade.Text("Quit to Lobby", 0, 0, arcade.color.WHITE, 14, anchor_x="center")
-        ]
-        self._menu_button_labels = [
-            arcade.Text("Easy", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
-            arcade.Text("Medium", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
-            arcade.Text("Hard", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
-            arcade.Text("Leaderboards", 0, 0, arcade.color.WHITE, 20, anchor_x="center")
         ]
 
     def _build_menu_buttons(self):
@@ -530,6 +538,9 @@ class PacmanGame(BaseGame):
             if self.scared_timer <= 0:
                 self.scared_timer = 0
                 scared = False
+                # Эффект закончился — все призраки снова могут пугаться
+                for ghost in self.ghosts:
+                    ghost.force_normal = False
             if self.scared_timer <= BLINK_START:
                 self.blink_timer += dt
                 while self.blink_timer >= BLINK_INTERVAL:
@@ -553,6 +564,9 @@ class PacmanGame(BaseGame):
             scared = True
             self.blink_timer = 0.0
             self.blink_on = True
+            # Новый энергизатор сбрасывает иммунитет у уже съеденных призраков
+            for ghost in self.ghosts:
+                ghost.force_normal = False
         for fruit in self.fruits[:]:
             if fruit["col"] == col and fruit["row"] == row:
                 self.fruits.remove(fruit)
@@ -569,10 +583,12 @@ class PacmanGame(BaseGame):
             dist = math.hypot(self.pacman.center_x - ghost.center_x,
                               self.pacman.center_y - ghost.center_y)
             if dist < CELL_SIZE * 0.7:
-                if scared:
+                if scared and not ghost.force_normal:
+                    # Едим призрака
                     self.score += int(200 * self.boost_multiplier)
                     ghost.reset_to_home()
-                else:
+                elif not scared:
+                    # Призрак убивает игрока
                     self.lives -= 1
                     if self.lives <= 0:
                         self.game_over = True
@@ -600,6 +616,8 @@ class PacmanGame(BaseGame):
         self.blink_on = True
         self.boost_timer = 0
         self.boost_multiplier = 1
+        for ghost in self.ghosts:
+            ghost.force_normal = False
 
     def _is_high_score(self):
         entries = self.leaderboard_data.get(self.difficulty, [])
@@ -647,15 +665,18 @@ class PacmanGame(BaseGame):
     def _draw_menu(self):
         self._menu_title.draw()
         self._menu_subtitle.draw()
-        for i, btn in enumerate(self.menu_buttons):
-            l, r = btn["x"] - btn["w"]//2, btn["x"] + btn["w"]//2
-            b, t = btn["y"] - btn["h"]//2, btn["y"] + btn["h"]//2
+        for btn in self.menu_buttons:
+            l = btn["x"] - btn["w"] // 2
+            r = btn["x"] + btn["w"] // 2
+            b = btn["y"] - btn["h"] // 2
+            t = btn["y"] + btn["h"] // 2
             arcade.draw_lrbt_rectangle_filled(l, r, b, t, arcade.color.DARK_BLUE)
             arcade.draw_lrbt_rectangle_outline(l, r, b, t, arcade.color.WHITE, 2)
-            lbl = self._menu_button_labels[i]
-            lbl.x = btn["x"]
-            lbl.y = btn["y"]
-            lbl.draw()
+            # Текст точно по центру кнопки – создаём новый объект с anchor_y="center"
+            label = arcade.Text(btn["label"], btn["x"], btn["y"],
+                                arcade.color.WHITE, 20,
+                                anchor_x="center", anchor_y="center")
+            label.draw()
 
     def _draw_leaderboard(self):
         self._lb_title.draw()
