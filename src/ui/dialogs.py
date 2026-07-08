@@ -29,13 +29,21 @@ def _make_starfield(batch: arcade.shape_list.ShapeElementList,
 class ConfirmationDialog(arcade.View):
     """Dialog shown before starting a game."""
 
+    _bg_texture = None  # shared across all instances
+
     def __init__(self, machine_id: str, machine_name: str, leaderboard_entries: list,
                  on_confirm_callback, on_cancel_callback):
         super().__init__()
         self.machine_id = machine_id
         self.on_confirm_callback = on_confirm_callback
         self.on_cancel_callback = on_cancel_callback
-        self.background_color = arcade.color.DARK_GRAY
+        if ConfirmationDialog._bg_texture is None:
+            import os
+            path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "assets", "backgrounds", "screen_avt.jpeg",
+            )
+            ConfirmationDialog._bg_texture = arcade.load_texture(path)
 
         cx = SCREEN_WIDTH // 2
         cy = SCREEN_HEIGHT // 2
@@ -74,14 +82,9 @@ class ConfirmationDialog(arcade.View):
         cx, cy = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
         button_y = cy - DIALOG_HEIGHT // 2 + 30
 
-        arcade.draw_rect_filled(
-            arcade.XYWH(cx, cy, SCREEN_WIDTH, SCREEN_HEIGHT), (0, 0, 0, 150)
-        )
-        arcade.draw_rect_filled(
-            arcade.XYWH(cx, cy, DIALOG_WIDTH, DIALOG_HEIGHT), arcade.color.DARK_SLATE_GRAY
-        )
-        arcade.draw_rect_outline(
-            arcade.XYWH(cx, cy, DIALOG_WIDTH, DIALOG_HEIGHT), arcade.color.WHITE, 2
+        arcade.draw_texture_rect(
+            self._bg_texture,
+            arcade.XYWH(cx, cy, SCREEN_WIDTH, SCREEN_HEIGHT),
         )
 
         self._title_text.draw()
