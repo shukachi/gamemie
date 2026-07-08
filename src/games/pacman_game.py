@@ -1,8 +1,8 @@
 """
-Pac-Man arcade game integrated as a BaseGame view.
-Uses arcade.Text objects for all text rendering (no draw_text).
-Ghosts become normal immediately after being eaten and remain immune
-until the energizer effect ends.
+Pac-Man arcade game – integrated BaseGame view.
+Adaptive layout: background frame, HUD area, bordered game field.
+Ghosts become immune after being eaten, heart icons for lives,
+best score display for current difficulty.
 """
 
 import arcade
@@ -15,10 +15,8 @@ from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
 # ----------------------------------------------------------------------
-# Constants
+# Constants (gameplay, visuals are now computed dynamically)
 # ----------------------------------------------------------------------
-CELL_SIZE = 40
-GRID_OFFSET_Y = 60
 PACMAN_SPEED = 120
 GHOST_SPEED = 90
 GHOST_SCARED_SPEED = 60
@@ -98,20 +96,8 @@ LEADERBOARD_FILE = "data/leaderboards/pacman_leaderboard.json"
 MAX_LEADERBOARD_ENTRIES = 10
 
 # ----------------------------------------------------------------------
-# Helpers
+# Helpers (no longer use global CELL_SIZE)
 # ----------------------------------------------------------------------
-def tile_to_pixel(col, row, rows, cols):
-    x = (col + 0.5) * CELL_SIZE
-    y = (rows - 1 - row + 0.5) * CELL_SIZE
-    return x, y
-
-def can_move_to(col, row, dcol, drow, map_data):
-    new_col = col + dcol
-    new_row = row + drow
-    if new_col < 0 or new_col >= len(map_data[0]) or new_row < 0 or new_row >= len(map_data):
-        return False
-    return map_data[new_row][new_col] != '#'
-
 def load_local_leaderboard():
     if os.path.exists(LEADERBOARD_FILE):
         try:
@@ -129,19 +115,29 @@ def save_local_leaderboard(data):
         json.dump(data, f, indent=2)
 
 # ----------------------------------------------------------------------
-# Game objects
+# Game objects – now receive cell_size and field offsets
 # ----------------------------------------------------------------------
 class Pacman:
-    def __init__(self, col, row, rows, cols):
+    def __init__(self, col, row, cell_size, field_left, field_bottom, rows, cols):
         self.col = col
         self.row = row
-        self.center_x, self.center_y = tile_to_pixel(col, row, rows, cols)
+        self.cell_size = cell_size
+        self.field_left = field_left
+        self.field_bottom = field_bottom
+        self.rows = rows
+        self.cols = cols
+        self.center_x, self.center_y = self._tile_to_pixel(col, row)
         self.direction = (0, 0)
         self.next_direction = (0, 0)
         self.mouth_angle = 0
         self.mouth_dir = 1
 
-    def update(self, dt, map_data, rows, cols):
+    def _tile_to_pixel(self, col, row):
+        x = self.field_left + (col + 0.5) * self.cell_size
+        y = self.field_bottom + (self.rows - 1 - row + 0.5) * self.cell_size
+        return x, y
+
+    def update(self, dt, map_data):
         self.mouth_angle += 120 * dt * self.mouth_dir
         if self.mouth_angle > 40:
             self.mouth_angle = 40
@@ -160,7 +156,7 @@ class Pacman:
                 return
 
         dcol, drow = self.direction
-        target_x, target_y = tile_to_pixel(self.col + dcol, self.row + drow, rows, cols)
+        target_x, target_y = self._tile_to_pixel(self.col + dcol, self.row + drow)
         dx = target_x - self.center_x
         dy = target_y - self.center_y
         dist = math.hypot(dx, dy)
@@ -188,27 +184,33 @@ class Pacman:
 
 
 class Ghost:
-    def __init__(self, col, row, color, rows, cols):
+    def __init__(self, col, row, color, cell_size, field_left, field_bottom, rows, cols):
         self.home_col = col
         self.home_row = row
         self.col = col
         self.row = row
-        self.center_x, self.center_y = tile_to_pixel(col, row, rows, cols)
+        self.cell_size = cell_size
+        self.field_left = field_left
+        self.field_bottom = field_bottom
+        self.rows = rows
+        self.cols = cols
+        self.center_x, self.center_y = self._tile_to_pixel(col, row)
         self.direction = random.choice([(1,0),(-1,0),(0,1),(0,-1)])
         self.color = color
         self.scared = False
         self.respawn_timer = 0.0
-        self.force_normal = False    # не пугается до конца текущего scare
-        self.rows = rows
-        self.cols = cols
+        self.force_normal = False
+
+    def _tile_to_pixel(self, col, row):
+        x = self.field_left + (col + 0.5) * self.cell_size
+        y = self.field_bottom + (self.rows - 1 - row + 0.5) * self.cell_size
+        return x, y
 
     def update(self, dt, scared_mode, map_data):
-        # Призрак, съеденный во время scare, игнорирует страх
         effective_scared = scared_mode and not self.force_normal
 
         if self.respawn_timer > 0:
             self.respawn_timer -= dt
-            # пока идёт таймер, призрак остаётся неактивным (не двигается)
             if self.respawn_timer <= 0:
                 self.respawn_timer = 0.0
                 possible = []
@@ -219,7 +221,6 @@ class Ghost:
                     self.direction = random.choice(possible)
                 else:
                     self.direction = (0, 0)
-            # всё равно обновляем scared (цвет может измениться)
             self.scared = effective_scared
             return
 
@@ -230,7 +231,7 @@ class Ghost:
             return
 
         dcol, drow = self.direction
-        target_x, target_y = tile_to_pixel(self.col + dcol, self.row + drow, self.rows, self.cols)
+        target_x, target_y = self._tile_to_pixel(self.col + dcol, self.row + drow)
         dx = target_x - self.center_x
         dy = target_y - self.center_y
         dist = math.hypot(dx, dy)
@@ -262,11 +263,19 @@ class Ghost:
     def reset_to_home(self):
         self.col = self.home_col
         self.row = self.home_row
-        self.center_x, self.center_y = tile_to_pixel(self.col, self.row, self.rows, self.cols)
+        self.center_x, self.center_y = self._tile_to_pixel(self.col, self.row)
         self.direction = (0, 0)
         self.respawn_timer = 5.0
         self.scared = False
-        self.force_normal = True   # больше не пугается до окончания scare
+        self.force_normal = True
+
+
+def can_move_to(col, row, dcol, drow, map_data):
+    new_col = col + dcol
+    new_row = row + drow
+    if new_col < 0 or new_col >= len(map_data[0]) or new_row < 0 or new_row >= len(map_data):
+        return False
+    return map_data[new_row][new_col] != '#'
 
 
 # ----------------------------------------------------------------------
@@ -304,6 +313,12 @@ class PacmanGame(BaseGame):
         self.postgame_buttons = []
         self.countdown_timer = 0.0
 
+        # Layout variables (computed in _start_game)
+        self.cell_size = 1
+        self.field_left = 0
+        self.field_bottom = 0
+        self.hud_top = 0   # top of HUD area
+
         # ---------- Text objects ----------
         cx = SCREEN_WIDTH // 2
         cy = SCREEN_HEIGHT // 2
@@ -320,31 +335,20 @@ class PacmanGame(BaseGame):
             arcade.Text("Medium", 0, 0, arcade.color.ORANGE, 22, anchor_x="center"),
             arcade.Text("Hard", 0, 0, arcade.color.ORANGE, 22, anchor_x="center")
         ]
-        self._score_text = arcade.Text("Score: 0", 10, SCREEN_HEIGHT - 30,
-                                       arcade.color.WHITE, 16)
-        self._lives_text = arcade.Text("Lives: 3", 10, SCREEN_HEIGHT - 50,
-                                       arcade.color.WHITE, 16)
-        self._boost_text = arcade.Text("", 10, SCREEN_HEIGHT - 70,
-                                       arcade.color.GREEN, 14)
-        self._countdown_text = arcade.Text("", cx, cy + GRID_OFFSET_Y // 2,
-                                           arcade.color.YELLOW, 72, anchor_x="center")
+        # HUD texts – positions will be set dynamically in _draw_game
+        self._score_text = arcade.Text("Score: 0", 0, 0, arcade.color.WHITE, 16)
+        self._best_score_text = arcade.Text("Best: --", 0, 0, arcade.color.GOLD, 14)
+        self._boost_text = arcade.Text("", 0, 0, arcade.color.GREEN, 14)
+        self._countdown_text = arcade.Text("", cx, cy, arcade.color.YELLOW, 72, anchor_x="center")
         self._enter_name_title = arcade.Text("New High Score!", cx, cy + 100,
                                              arcade.color.GREEN, 22, anchor_x="center")
         self._enter_name_prompt = arcade.Text("Enter name and press ENTER:", cx, cy + 50,
                                               arcade.color.WHITE, 18, anchor_x="center")
-        self._entered_name_text = arcade.Text("", cx, cy,
-                                              arcade.color.WHITE, 18, anchor_x="center")
-        self._postgame_title = arcade.Text("", cx, cy + 40,
-                                           arcade.color.WHITE, 28, anchor_x="center")
+        self._entered_name_text = arcade.Text("", cx, cy, arcade.color.WHITE, 18, anchor_x="center")
+        self._postgame_title = arcade.Text("", cx, cy + 40, arcade.color.WHITE, 28, anchor_x="center")
         self._postgame_button_texts = [
             arcade.Text("Play Again", 0, 0, arcade.color.WHITE, 14, anchor_x="center"),
             arcade.Text("Quit to Lobby", 0, 0, arcade.color.WHITE, 14, anchor_x="center")
-        ]
-        self._menu_button_labels = [
-            arcade.Text("Easy", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
-            arcade.Text("Medium", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
-            arcade.Text("Hard", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
-            arcade.Text("Leaderboards", 0, 0, arcade.color.WHITE, 20, anchor_x="center")
         ]
 
     def _build_menu_buttons(self):
@@ -436,11 +440,35 @@ class PacmanGame(BaseGame):
                         self.finish_game(False)
                     break
 
+    def _compute_layout(self):
+        """Рассчитывает размер клетки и отступы, чтобы поле вписалось в окно."""
+        map_rows = self.rows
+        map_cols = self.cols
+        # Резервируем верхние 50 пикселей под HUD, остальное под карту с небольшими полями
+        HUD_HEIGHT = 50
+        MARGIN = 20   # поля вокруг карты
+        area_width = SCREEN_WIDTH - 2 * MARGIN
+        area_height = SCREEN_HEIGHT - HUD_HEIGHT - 2 * MARGIN
+        cell_w = area_width / map_cols
+        cell_h = area_height / map_rows
+        cell_size = min(cell_w, cell_h)
+        # Центрируем карту в доступной области
+        field_width = map_cols * cell_size
+        field_height = map_rows * cell_size
+        field_left = (SCREEN_WIDTH - field_width) / 2
+        field_bottom = MARGIN + (area_height - field_height) / 2
+        self.cell_size = cell_size
+        self.field_left = field_left
+        self.field_bottom = field_bottom
+        self.hud_top = SCREEN_HEIGHT - HUD_HEIGHT
+
     def _start_game(self):
         diff = self.difficulty or 'easy'
         self.map_data = MAPS[diff]
         self.rows = len(self.map_data)
         self.cols = len(self.map_data[0])
+
+        self._compute_layout()
 
         self.dots = [[False]*self.cols for _ in range(self.rows)]
         self.energizers = [[False]*self.cols for _ in range(self.rows)]
@@ -460,7 +488,8 @@ class PacmanGame(BaseGame):
 
         pac_col, pac_row = self.cols // 2, self.rows - 2
         self.dots[pac_row][pac_col] = False
-        self.pacman = Pacman(pac_col, pac_row, self.rows, self.cols)
+        self.pacman = Pacman(pac_col, pac_row, self.cell_size,
+                             self.field_left, self.field_bottom, self.rows, self.cols)
 
         self.ghosts = []
         ghost_homes = [
@@ -481,7 +510,8 @@ class PacmanGame(BaseGame):
                         break
         for i, (gc, gr) in enumerate(valid_homes[:4]):
             color = COLOR_GHOST_COLORS[i % len(COLOR_GHOST_COLORS)]
-            ghost = Ghost(gc, gr, color, self.rows, self.cols)
+            ghost = Ghost(gc, gr, color, self.cell_size,
+                          self.field_left, self.field_bottom, self.rows, self.cols)
             self.ghosts.append(ghost)
             self.dots[gr][gc] = False
 
@@ -546,7 +576,6 @@ class PacmanGame(BaseGame):
             if self.scared_timer <= 0:
                 self.scared_timer = 0
                 scared = False
-                # Эффект закончился — все призраки снова могут пугаться
                 for ghost in self.ghosts:
                     ghost.force_normal = False
             if self.scared_timer <= BLINK_START:
@@ -559,7 +588,7 @@ class PacmanGame(BaseGame):
         else:
             self.blink_on = True
 
-        self.pacman.update(dt, self.map_data, self.rows, self.cols)
+        self.pacman.update(dt, self.map_data)
         col, row = self.pacman.col, self.pacman.row
 
         if self.dots[row][col]:
@@ -572,7 +601,6 @@ class PacmanGame(BaseGame):
             scared = True
             self.blink_timer = 0.0
             self.blink_on = True
-            # Новый энергизатор сбрасывает иммунитет у уже съеденных призраков
             for ghost in self.ghosts:
                 ghost.force_normal = False
         for fruit in self.fruits[:]:
@@ -590,13 +618,11 @@ class PacmanGame(BaseGame):
         for ghost in self.ghosts:
             dist = math.hypot(self.pacman.center_x - ghost.center_x,
                               self.pacman.center_y - ghost.center_y)
-            if dist < CELL_SIZE * 0.7:
+            if dist < self.cell_size * 0.7:
                 if scared and not ghost.force_normal:
-                    # Едим призрака
                     self.score += int(200 * self.boost_multiplier)
                     ghost.reset_to_home()
                 elif not scared:
-                    # Призрак убивает игрока
                     self.lives -= 1
                     if self.lives <= 0:
                         self.game_over = True
@@ -614,7 +640,7 @@ class PacmanGame(BaseGame):
         pac_col, pac_row = self.cols // 2, self.rows - 2
         self.pacman.col = pac_col
         self.pacman.row = pac_row
-        self.pacman.center_x, self.pacman.center_y = tile_to_pixel(pac_col, pac_row, self.rows, self.cols)
+        self.pacman.center_x, self.pacman.center_y = self.pacman._tile_to_pixel(pac_col, pac_row)
         self.pacman.direction = (0, 0)
         self.pacman.next_direction = (0, 0)
         for ghost in self.ghosts:
@@ -673,15 +699,17 @@ class PacmanGame(BaseGame):
     def _draw_menu(self):
         self._menu_title.draw()
         self._menu_subtitle.draw()
-        for i, btn in enumerate(self.menu_buttons):
-            l, r = btn["x"] - btn["w"]//2, btn["x"] + btn["w"]//2
-            b, t = btn["y"] - btn["h"]//2, btn["y"] + btn["h"]//2
+        for btn in self.menu_buttons:
+            l = btn["x"] - btn["w"] // 2
+            r = btn["x"] + btn["w"] // 2
+            b = btn["y"] - btn["h"] // 2
+            t = btn["y"] + btn["h"] // 2
             arcade.draw_lrbt_rectangle_filled(l, r, b, t, arcade.color.DARK_BLUE)
             arcade.draw_lrbt_rectangle_outline(l, r, b, t, arcade.color.WHITE, 2)
-            lbl = self._menu_button_labels[i]
-            lbl.x = btn["x"]
-            lbl.y = btn["y"]
-            lbl.draw()
+            label = arcade.Text(btn["label"], btn["x"], btn["y"],
+                                arcade.color.WHITE, 20,
+                                anchor_x="center", anchor_y="center")
+            label.draw()
 
     def _draw_leaderboard(self):
         self._lb_title.draw()
@@ -718,37 +746,87 @@ class PacmanGame(BaseGame):
         self._entered_name_text.draw()
 
     def _draw_game(self):
-        def dx(x):
-            return x
-        def dy(y):
-            return y + GRID_OFFSET_Y
+        # Общий фон всей игры
+        arcade.draw_lrbt_rectangle_filled(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT, (10, 10, 30))
 
-        # Walls
+        # Рамка вокруг всей игры
+        arcade.draw_lrbt_rectangle_outline(2, SCREEN_WIDTH - 2, 2, SCREEN_HEIGHT - 2,
+                                           arcade.color.DARK_GRAY, 4)
+
+        # HUD фон
+        arcade.draw_lrbt_rectangle_filled(0, SCREEN_WIDTH,
+                                          self.hud_top, SCREEN_HEIGHT,
+                                          (20, 20, 50, 200))
+
+        # Тексты счёта и рекорда в HUD
+        self._score_text.text = f"Score: {self.score}"
+        self._score_text.x = 15
+        self._score_text.y = self.hud_top + 30
+        self._score_text.draw()
+
+        if self.difficulty and self.leaderboard_data:
+            entries = self.leaderboard_data.get(self.difficulty, [])
+            if entries:
+                best = entries[0]
+                self._best_score_text.text = f"Best: {best['score']} by {best['name']}"
+            else:
+                self._best_score_text.text = "Best: --"
+            self._best_score_text.x = 15
+            self._best_score_text.y = self.hud_top + 8
+            self._best_score_text.draw()
+
+        if self.boost_timer > 0 and self.boost_multiplier > 1:
+            self._boost_text.text = f"x{self.boost_multiplier} {self.boost_fruit_name} {self.boost_timer:.1f}s"
+            self._boost_text.x = SCREEN_WIDTH - 150
+            self._boost_text.y = self.hud_top + 30
+            self._boost_text.draw()
+
+        # Сердечки жизней в правой части HUD
+        heart_x = SCREEN_WIDTH - 30
+        heart_y = self.hud_top + 15
+        for i in range(self.lives):
+            self._draw_heart(heart_x - i * 25, heart_y, 8)
+
+        # Рамка игрового поля
+        field_left = self.field_left
+        field_bottom = self.field_bottom
+        field_width = self.cols * self.cell_size
+        field_height = self.rows * self.cell_size
+        arcade.draw_lrbt_rectangle_outline(field_left - 2, field_left + field_width + 2,
+                                           field_bottom - 2, field_bottom + field_height + 2,
+                                           arcade.color.YELLOW, 3)
+
+        # Стены
         for r in range(self.rows):
             for c in range(self.cols):
                 if self.walls[r][c]:
-                    cx, cy = tile_to_pixel(c, r, self.rows, self.cols)
-                    left, right = dx(cx)-CELL_SIZE/2, dx(cx)+CELL_SIZE/2
-                    bottom, top = dy(cy)-CELL_SIZE/2, dy(cy)+CELL_SIZE/2
+                    cx = field_left + (c + 0.5) * self.cell_size
+                    cy = field_bottom + (self.rows - 1 - r + 0.5) * self.cell_size
+                    left = cx - self.cell_size / 2
+                    right = cx + self.cell_size / 2
+                    bottom = cy - self.cell_size / 2
+                    top = cy + self.cell_size / 2
                     arcade.draw_lrbt_rectangle_filled(left, right, bottom, top, COLOR_WALL)
 
-        # Dots & energizers
+        # Точки и энерджайзеры
         for r in range(self.rows):
             for c in range(self.cols):
-                x, y = tile_to_pixel(c, r, self.rows, self.cols)
+                cx = field_left + (c + 0.5) * self.cell_size
+                cy = field_bottom + (self.rows - 1 - r + 0.5) * self.cell_size
                 if self.dots[r][c]:
-                    arcade.draw_circle_filled(dx(x), dy(y), CELL_SIZE*0.15, COLOR_DOT)
+                    arcade.draw_circle_filled(cx, cy, self.cell_size * 0.15, COLOR_DOT)
                 if self.energizers[r][c]:
-                    arcade.draw_circle_filled(dx(x), dy(y), CELL_SIZE*0.3, COLOR_ENERGIZER)
+                    arcade.draw_circle_filled(cx, cy, self.cell_size * 0.3, COLOR_ENERGIZER)
 
-        # Fruits
+        # Фрукты
         for fruit in self.fruits:
-            cx, cy = tile_to_pixel(fruit["col"], fruit["row"], self.rows, self.cols)
-            self._draw_fruit(fruit["type"], dx(cx), dy(cy), CELL_SIZE*0.5)
+            cx = field_left + (fruit["col"] + 0.5) * self.cell_size
+            cy = field_bottom + (self.rows - 1 - fruit["row"] + 0.5) * self.cell_size
+            self._draw_fruit(fruit["type"], cx, cy, self.cell_size * 0.5)
 
-        # Ghosts
+        # Призраки
         for ghost in self.ghosts:
-            gx, gy = dx(ghost.center_x), dy(ghost.center_y)
+            gx, gy = ghost.center_x, ghost.center_y
             if ghost.scared:
                 if self.scared_timer <= BLINK_START and not self.blink_on:
                     color = ghost.color
@@ -756,18 +834,20 @@ class PacmanGame(BaseGame):
                     color = COLOR_SCARED
             else:
                 color = ghost.color
-            arcade.draw_circle_filled(gx, gy, CELL_SIZE*0.4, color)
-            e_off = CELL_SIZE*0.15
-            arcade.draw_circle_filled(gx-e_off, gy+e_off, CELL_SIZE*0.12, COLOR_EYES)
-            arcade.draw_circle_filled(gx+e_off, gy+e_off, CELL_SIZE*0.12, COLOR_EYES)
-            p_off = CELL_SIZE*0.04
-            dxd, dyd = ghost.direction if ghost.direction != (0,0) else (1,0)
-            arcade.draw_circle_filled(gx-e_off+dxd*p_off, gy+e_off+dyd*p_off, CELL_SIZE*0.05, COLOR_PUPIL)
-            arcade.draw_circle_filled(gx+e_off+dxd*p_off, gy+e_off+dyd*p_off, CELL_SIZE*0.05, COLOR_PUPIL)
+            arcade.draw_circle_filled(gx, gy, self.cell_size * 0.4, color)
+            e_off = self.cell_size * 0.15
+            arcade.draw_circle_filled(gx - e_off, gy + e_off, self.cell_size * 0.12, COLOR_EYES)
+            arcade.draw_circle_filled(gx + e_off, gy + e_off, self.cell_size * 0.12, COLOR_EYES)
+            p_off = self.cell_size * 0.04
+            dxd, dyd = ghost.direction if ghost.direction != (0, 0) else (1, 0)
+            arcade.draw_circle_filled(gx - e_off + dxd * p_off, gy + e_off + dyd * p_off,
+                                      self.cell_size * 0.05, COLOR_PUPIL)
+            arcade.draw_circle_filled(gx + e_off + dxd * p_off, gy + e_off + dyd * p_off,
+                                      self.cell_size * 0.05, COLOR_PUPIL)
 
-        # Pac-Man
+        # Пакман
         if self.pacman:
-            px, py = dx(self.pacman.center_x), dy(self.pacman.center_y)
+            px, py = self.pacman.center_x, self.pacman.center_y
             dcol, drow = self.pacman.direction
             if dcol == 1: base_angle = 0
             elif dcol == -1: base_angle = 180
@@ -775,46 +855,53 @@ class PacmanGame(BaseGame):
             elif drow == -1: base_angle = 90
             else: base_angle = 0
             mouth = self.pacman.mouth_angle
-            arcade.draw_arc_filled(px, py, CELL_SIZE*0.8, CELL_SIZE*0.8,
-                                   COLOR_PACMAN, start_angle=base_angle+mouth,
-                                   end_angle=base_angle+360-mouth)
+            arcade.draw_arc_filled(px, py, self.cell_size * 0.8, self.cell_size * 0.8,
+                                   COLOR_PACMAN, start_angle=base_angle + mouth,
+                                   end_angle=base_angle + 360 - mouth)
             eye_angle = math.radians(base_angle)
-            eye_x = px + math.cos(eye_angle)*CELL_SIZE*0.25
-            eye_y = py + math.sin(eye_angle)*CELL_SIZE*0.25
-            arcade.draw_circle_filled(eye_x, eye_y, CELL_SIZE*0.08, COLOR_PUPIL)
+            eye_x = px + math.cos(eye_angle) * self.cell_size * 0.25
+            eye_y = py + math.sin(eye_angle) * self.cell_size * 0.25
+            arcade.draw_circle_filled(eye_x, eye_y, self.cell_size * 0.08, COLOR_PUPIL)
 
-        # HUD
-        self._score_text.text = f"Score: {self.score}"
-        self._score_text.draw()
-        self._lives_text.text = f"Lives: {self.lives}"
-        self._lives_text.draw()
-        if self.boost_timer > 0 and self.boost_multiplier > 1:
-            self._boost_text.text = f"x{self.boost_multiplier} {self.boost_fruit_name} {self.boost_timer:.1f}s"
-            self._boost_text.draw()
+    def _draw_heart(self, x, y, size):
+        """Рисует маленькое сердечко."""
+        arcade.draw_arc_filled(x - size * 0.5, y + size * 0.5, size, size,
+                               arcade.color.RED, 0, 180)
+        arcade.draw_arc_filled(x + size * 0.5, y + size * 0.5, size, size,
+                               arcade.color.RED, 0, 180)
+        arcade.draw_triangle_filled(x - size, y + size * 0.3,
+                                    x + size, y + size * 0.3,
+                                    x, y - size * 0.7,
+                                    arcade.color.RED)
 
     def _draw_countdown(self):
+        # Во время отсчёта рисуем поверх всего
         if self.countdown_timer > 0:
             number = math.ceil(self.countdown_timer)
             self._countdown_text.text = str(number)
         else:
             self._countdown_text.text = "GO!"
+        self._countdown_text.x = SCREEN_WIDTH // 2
+        self._countdown_text.y = SCREEN_HEIGHT // 2
         self._countdown_text.draw()
 
     def _draw_fruit(self, fruit_type, cx, cy, size):
         if fruit_type == "strawberry":
-            arcade.draw_triangle_filled(cx, cy-size*0.6, cx-size*0.5, cy+size*0.2, cx+size*0.5, cy+size*0.2, (255,0,0))
-            arcade.draw_lrbt_rectangle_filled(cx-size*0.15, cx+size*0.15, cy+size*0.2, cy+size*0.5, (0,200,0))
-            arcade.draw_circle_filled(cx-size*0.15, cy-size*0.1, size*0.08, (255,255,0))
-            arcade.draw_circle_filled(cx+size*0.15, cy-size*0.1, size*0.08, (255,255,0))
+            arcade.draw_triangle_filled(cx, cy - size * 0.6, cx - size * 0.5, cy + size * 0.2,
+                                        cx + size * 0.5, cy + size * 0.2, (255, 0, 0))
+            arcade.draw_lrbt_rectangle_filled(cx - size * 0.15, cx + size * 0.15,
+                                              cy + size * 0.2, cy + size * 0.5, (0, 200, 0))
+            arcade.draw_circle_filled(cx - size * 0.15, cy - size * 0.1, size * 0.08, (255, 255, 0))
+            arcade.draw_circle_filled(cx + size * 0.15, cy - size * 0.1, size * 0.08, (255, 255, 0))
         elif fruit_type == "banana":
-            arcade.draw_ellipse_filled(cx, cy, size*0.9, size*0.4, (255,255,0), tilt_angle=30)
-            arcade.draw_circle_filled(cx-size*0.35, cy-size*0.15, size*0.08, (139,69,19))
-            arcade.draw_circle_filled(cx+size*0.35, cy+size*0.15, size*0.08, (139,69,19))
+            arcade.draw_ellipse_filled(cx, cy, size * 0.9, size * 0.4, (255, 255, 0), tilt_angle=30)
+            arcade.draw_circle_filled(cx - size * 0.35, cy - size * 0.15, size * 0.08, (139, 69, 19))
+            arcade.draw_circle_filled(cx + size * 0.35, cy + size * 0.15, size * 0.08, (139, 69, 19))
         elif fruit_type == "grape":
-            arcade.draw_circle_filled(cx, cy+size*0.2, size*0.2, (128,0,128))
-            arcade.draw_circle_filled(cx-size*0.2, cy-size*0.15, size*0.2, (128,0,128))
-            arcade.draw_circle_filled(cx+size*0.2, cy-size*0.15, size*0.2, (128,0,128))
-            arcade.draw_line(cx, cy+size*0.4, cx, cy+size*0.6, (0,200,0), 2)
+            arcade.draw_circle_filled(cx, cy + size * 0.2, size * 0.2, (128, 0, 128))
+            arcade.draw_circle_filled(cx - size * 0.2, cy - size * 0.15, size * 0.2, (128, 0, 128))
+            arcade.draw_circle_filled(cx + size * 0.2, cy - size * 0.15, size * 0.2, (128, 0, 128))
+            arcade.draw_line(cx, cy + size * 0.4, cx, cy + size * 0.6, (0, 200, 0), 2)
 
     def _build_postgame_buttons(self):
         cx = SCREEN_WIDTH // 2
