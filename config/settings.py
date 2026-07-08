@@ -14,6 +14,7 @@ SCREEN_TITLE = "Arcade Club"
 BRIGHTNESS = 1.0
 FULLSCREEN = True
 RESOLUTION = (1280, 720)  # used in windowed mode
+POTATO_MODE = False  # retro shape-only rendering
 
 # Sound
 LOBBY_MUSIC_VOLUME = 0.5
@@ -55,7 +56,7 @@ _FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def save_settings() -> None:
-    global FULLSCREEN, RESOLUTION, LOBBY_MUSIC_VOLUME, SETTINGS_MUSIC_VOLUME
+    global FULLSCREEN, RESOLUTION, LOBBY_MUSIC_VOLUME, SETTINGS_MUSIC_VOLUME, POTATO_MODE
     os.makedirs(os.path.dirname(_FILE), exist_ok=True)
     with open(_FILE, "w", encoding="utf-8") as f:
         json.dump({
@@ -63,11 +64,12 @@ def save_settings() -> None:
             "resolution": list(RESOLUTION),
             "lobby_music_volume": LOBBY_MUSIC_VOLUME,
             "settings_music_volume": SETTINGS_MUSIC_VOLUME,
+            "potato_mode": POTATO_MODE,
         }, f)
 
 
 def load_settings() -> None:
-    global FULLSCREEN, RESOLUTION, LOBBY_MUSIC_VOLUME, SETTINGS_MUSIC_VOLUME
+    global FULLSCREEN, RESOLUTION, LOBBY_MUSIC_VOLUME, SETTINGS_MUSIC_VOLUME, POTATO_MODE
     if not os.path.exists(_FILE):
         return
     try:
@@ -79,5 +81,6 @@ def load_settings() -> None:
             RESOLUTION = tuple(res)
         LOBBY_MUSIC_VOLUME = float(data.get("lobby_music_volume", LOBBY_MUSIC_VOLUME))
         SETTINGS_MUSIC_VOLUME = float(data.get("settings_music_volume", SETTINGS_MUSIC_VOLUME))
+        POTATO_MODE = bool(data.get("potato_mode", POTATO_MODE))
     except Exception:
         pass
