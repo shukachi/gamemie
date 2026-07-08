@@ -354,7 +354,8 @@ class LobbyView(arcade.View):
             self._start_game(machine.machine_id)
 
         def on_cancel():
-            pass
+            # Раньше здесь был pass, теперь возвращаемся в лобби
+            self.window.show_view(self)
 
         dialog = ConfirmationDialog(
             machine.machine_id, machine.machine_name, leaderboard_entries,
