@@ -10,6 +10,7 @@ import math
 import json
 import os
 from src.games.base_game import BaseGame
+from config import settings as cfg          # <-- добавлен импорт настроек
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
 # ----------------------------------------------------------------------
@@ -484,7 +485,7 @@ class PacmanGame(BaseGame):
                     self.blink_timer -= BLINK_INTERVAL
                     self.blink_on = not self.blink_on
             else:
-                self.blink_on = True   # до 3 секунд всегда синие
+                self.blink_on = True
         else:
             self.blink_on = True
 
@@ -564,13 +565,14 @@ class PacmanGame(BaseGame):
         save_local_leaderboard(self.leaderboard_data)
 
     def _handle_playing_input(self, key):
-        if key == arcade.key.UP:
+        """Обработка клавиш с учётом текущих биндов лобби."""
+        if key == cfg.KEY_BINDINGS['up']:
             self.pacman.set_next_direction(*DIRECTIONS['UP'])
-        elif key == arcade.key.DOWN:
+        elif key == cfg.KEY_BINDINGS['down']:
             self.pacman.set_next_direction(*DIRECTIONS['DOWN'])
-        elif key == arcade.key.LEFT:
+        elif key == cfg.KEY_BINDINGS['left']:
             self.pacman.set_next_direction(*DIRECTIONS['LEFT'])
-        elif key == arcade.key.RIGHT:
+        elif key == cfg.KEY_BINDINGS['right']:
             self.pacman.set_next_direction(*DIRECTIONS['RIGHT'])
 
     def _handle_name_input(self, key, modifiers):
@@ -669,10 +671,9 @@ class PacmanGame(BaseGame):
         # Ghosts
         for ghost in self.ghosts:
             gx, gy = dx(ghost.center_x), dy(ghost.center_y)
-            # Определяем цвет с учётом мигания
             if ghost.scared:
                 if self.scared_timer <= BLINK_START and not self.blink_on:
-                    color = ghost.color   # обычный цвет при мигании
+                    color = ghost.color
                 else:
                     color = COLOR_SCARED
             else:
