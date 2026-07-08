@@ -265,7 +265,7 @@ class ControlsView(arcade.View):
 class GraphicsView(arcade.View):
 
     PW = int(SCREEN_WIDTH * 0.42)
-    PH = int(SCREEN_HEIGHT * 0.60)
+    PH = int(SCREEN_HEIGHT * 0.70)
     CX = SCREEN_WIDTH // 2
     CY = SCREEN_HEIGHT // 2
     ROW_H = 50
@@ -281,6 +281,9 @@ class GraphicsView(arcade.View):
 
     def _fullscreen_y(self) -> float:
         return self._res_y(len(RESOLUTIONS)) - 10
+
+    def _potato_y(self) -> float:
+        return self._fullscreen_y() - self.ROW_H - 4
 
     def _close_y(self) -> float:
         return self.CY - self.PH // 2 + 28
@@ -314,6 +317,17 @@ class GraphicsView(arcade.View):
         )
         self._fs_status = arcade.Text(
             "", x=self.CX + self.PW // 2 - 24, y=self._fullscreen_y(),
+            color=arcade.color.WHITE, font_size=13,
+            anchor_x="right", anchor_y="center",
+        )
+        self._potato_label = arcade.Text(
+            "Картошка \U0001f954",
+            x=self.CX - self.PW // 2 + 24, y=self._potato_y(),
+            color=arcade.color.LIGHT_GRAY, font_size=13,
+            anchor_x="left", anchor_y="center",
+        )
+        self._potato_status = arcade.Text(
+            "", x=self.CX + self.PW // 2 - 24, y=self._potato_y(),
             color=arcade.color.WHITE, font_size=13,
             anchor_x="right", anchor_y="center",
         )
@@ -356,6 +370,14 @@ class GraphicsView(arcade.View):
         self._fs_status.color = (144, 238, 144) if cfg.FULLSCREEN else arcade.color.LIGHT_GRAY
         self._fs_status.draw()
 
+        # Potato mode row
+        self._potato_label.y = self._potato_y()
+        self._potato_status.y = self._potato_y()
+        self._potato_label.draw()
+        self._potato_status.text = "[ ВКЛ ]" if cfg.POTATO_MODE else "[ ВЫКЛ ]"
+        self._potato_status.color = (255, 180, 80) if cfg.POTATO_MODE else arcade.color.LIGHT_GRAY
+        self._potato_status.draw()
+
         # Close button
         arcade.draw_rect_filled(
             arcade.XYWH(self.CX, self._close_y(), 180, 36), (70, 30, 30, 220)
@@ -382,6 +404,12 @@ class GraphicsView(arcade.View):
         if abs(x - self.CX) < half_w and abs(y - self._fullscreen_y()) < 22:
             cfg.FULLSCREEN = not cfg.FULLSCREEN
             self.window.set_fullscreen(cfg.FULLSCREEN)
+            cfg.save_settings()
+            return
+
+        # Potato mode toggle
+        if abs(x - self.CX) < half_w and abs(y - self._potato_y()) < 22:
+            cfg.POTATO_MODE = not cfg.POTATO_MODE
             cfg.save_settings()
             return
 
