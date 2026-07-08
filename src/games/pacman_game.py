@@ -1,7 +1,6 @@
 """
 Pac-Man arcade game integrated as a BaseGame view.
-Supports 3 difficulty levels, local leaderboard, and proper lobby integration.
-Ghosts blink when energizer is about to expire.
+Uses arcade.Text objects for all text rendering (no draw_text).
 """
 
 import arcade
@@ -10,11 +9,11 @@ import math
 import json
 import os
 from src.games.base_game import BaseGame
-from config import settings as cfg          # <-- добавлен импорт настроек
+from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
 # ----------------------------------------------------------------------
-# Constants (will be set per difficulty)
+# Constants
 # ----------------------------------------------------------------------
 CELL_SIZE = 40
 GRID_OFFSET_Y = 60
@@ -22,8 +21,9 @@ PACMAN_SPEED = 120
 GHOST_SPEED = 90
 GHOST_SCARED_SPEED = 60
 SCARED_DURATION = 7.0
-BLINK_START = 3.0          # начинаем мигать за 3 секунды до конца
-BLINK_INTERVAL = 0.2       # период мигания
+BLINK_START = 3.0
+BLINK_INTERVAL = 0.2
+COUNTDOWN_SECONDS = 3
 
 COLOR_WALL = (0, 0, 128)
 COLOR_DOT = (255, 255, 200)
@@ -96,7 +96,7 @@ LEADERBOARD_FILE = "data/leaderboards/pacman_leaderboard.json"
 MAX_LEADERBOARD_ENTRIES = 10
 
 # ----------------------------------------------------------------------
-# Helper functions
+# Helpers
 # ----------------------------------------------------------------------
 def tile_to_pixel(col, row, rows, cols):
     x = (col + 0.5) * CELL_SIZE
@@ -256,7 +256,7 @@ class Ghost:
         self.respawn_timer = 5.0
 
 # ----------------------------------------------------------------------
-# Main game View
+# Main Game View
 # ----------------------------------------------------------------------
 class PacmanGame(BaseGame):
     def __init__(self, machine_id: str, on_finish_callback):
@@ -279,9 +279,8 @@ class PacmanGame(BaseGame):
         self.boost_fruit_name = ""
         self.game_over = False
         self.win = False
-        # Blinking state
         self.blink_timer = 0.0
-        self.blink_on = True          # True = показывать scared цвет, False = обычный цвет
+        self.blink_on = True
 
         self.state = "menu"
         self.leaderboard_data = load_local_leaderboard()
@@ -289,6 +288,48 @@ class PacmanGame(BaseGame):
         self.entered_name = ""
         self.menu_buttons = self._build_menu_buttons()
         self.postgame_buttons = []
+        self.countdown_timer = 0.0
+
+        # ---------- Text objects ----------
+        self._menu_title = arcade.Text("PAC-MAN", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+180,
+                                       arcade.color.YELLOW, 48, anchor_x="center")
+        self._menu_subtitle = arcade.Text("Выберите сложность", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+130,
+                                          arcade.color.WHITE, 20, anchor_x="center")
+        self._lb_title = arcade.Text("Local Leaderboard", SCREEN_WIDTH//2, SCREEN_HEIGHT-40,
+                                     arcade.color.YELLOW, 32, anchor_x="center")
+        self._lb_hint = arcade.Text("Press BACKSPACE to return", SCREEN_WIDTH//2, 30,
+                                    arcade.color.WHITE, 14, anchor_x="center")
+        self._lb_level_titles = [
+            arcade.Text("Easy", 0, 0, arcade.color.ORANGE, 22, anchor_x="center"),
+            arcade.Text("Medium", 0, 0, arcade.color.ORANGE, 22, anchor_x="center"),
+            arcade.Text("Hard", 0, 0, arcade.color.ORANGE, 22, anchor_x="center")
+        ]
+        self._score_text = arcade.Text("Score: 0", 10, SCREEN_HEIGHT-30,
+                                       arcade.color.WHITE, 16)
+        self._lives_text = arcade.Text("Lives: 3", 10, SCREEN_HEIGHT-50,
+                                       arcade.color.WHITE, 16)
+        self._boost_text = arcade.Text("", 10, SCREEN_HEIGHT-70,
+                                       arcade.color.GREEN, 14)
+        self._countdown_text = arcade.Text("", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+GRID_OFFSET_Y//2,
+                                           arcade.color.YELLOW, 72, anchor_x="center")
+        self._enter_name_title = arcade.Text("New High Score!", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+100,
+                                             arcade.color.GREEN, 22, anchor_x="center")
+        self._enter_name_prompt = arcade.Text("Enter name and press ENTER:", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+50,
+                                              arcade.color.WHITE, 18, anchor_x="center")
+        self._entered_name_text = arcade.Text("", SCREEN_WIDTH//2, SCREEN_HEIGHT//2,
+                                              arcade.color.WHITE, 18, anchor_x="center")
+        self._postgame_title = arcade.Text("", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+40,
+                                           arcade.color.WHITE, 28, anchor_x="center")
+        self._postgame_button_texts = [
+            arcade.Text("Play Again", 0, 0, arcade.color.WHITE, 14, anchor_x="center"),
+            arcade.Text("Quit to Lobby", 0, 0, arcade.color.WHITE, 14, anchor_x="center")
+        ]
+        self._menu_button_labels = [
+            arcade.Text("Easy", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
+            arcade.Text("Medium", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
+            arcade.Text("Hard", 0, 0, arcade.color.WHITE, 20, anchor_x="center"),
+            arcade.Text("Leaderboards", 0, 0, arcade.color.WHITE, 20, anchor_x="center")
+        ]
 
     def _build_menu_buttons(self):
         cx = SCREEN_WIDTH // 2
@@ -317,18 +358,26 @@ class PacmanGame(BaseGame):
             self._draw_leaderboard()
         elif self.state == "enter_name":
             self._draw_name_input()
-        elif self.state in ("playing", "win", "postgame"):
+        elif self.state in ("countdown", "playing", "win", "postgame"):
             self._draw_game()
+            if self.state == "countdown":
+                self._draw_countdown()
             if self.state == "postgame":
                 self._draw_postgame_buttons()
 
     def on_update(self, delta_time):
-        if self.state == "playing":
+        if self.state == "countdown":
+            self.countdown_timer -= delta_time
+            if self.countdown_timer <= 0:
+                self.countdown_timer = 0
+                self.state = "playing"
+            return
+        elif self.state == "playing":
             self._update_playing(delta_time)
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE:
-            if self.state in ("menu", "leaderboard", "postgame"):
+            if self.state in ("menu", "leaderboard", "postgame", "countdown"):
                 self.finish_game(False)
             elif self.state == "playing":
                 self.finish_game(False)
@@ -346,6 +395,8 @@ class PacmanGame(BaseGame):
         elif self.state == "playing":
             self._handle_playing_input(key)
         elif self.state == "postgame":
+            pass
+        elif self.state == "countdown":
             pass
 
     def on_mouse_press(self, x, y, button, modifiers):
@@ -451,7 +502,8 @@ class PacmanGame(BaseGame):
         self.blink_on = True
         self.game_over = False
         self.win = False
-        self.state = "playing"
+        self.countdown_timer = COUNTDOWN_SECONDS
+        self.state = "countdown"
 
     def _update_playing(self, dt):
         if self.game_over or self.win:
@@ -478,7 +530,6 @@ class PacmanGame(BaseGame):
             if self.scared_timer <= 0:
                 self.scared_timer = 0
                 scared = False
-            # Управление миганием
             if self.scared_timer <= BLINK_START:
                 self.blink_timer += dt
                 while self.blink_timer >= BLINK_INTERVAL:
@@ -565,7 +616,6 @@ class PacmanGame(BaseGame):
         save_local_leaderboard(self.leaderboard_data)
 
     def _handle_playing_input(self, key):
-        """Обработка клавиш с учётом текущих биндов лобби."""
         if key == cfg.KEY_BINDINGS['up']:
             self.pacman.set_next_direction(*DIRECTIONS['UP'])
         elif key == cfg.KEY_BINDINGS['down']:
@@ -595,49 +645,51 @@ class PacmanGame(BaseGame):
     # Drawing methods
     # ------------------------------------------------------------------
     def _draw_menu(self):
-        arcade.draw_text("PAC-MAN", SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 180,
-                         arcade.color.YELLOW, 48, anchor_x="center")
-        arcade.draw_text("Выберите сложность", SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 130,
-                         arcade.color.WHITE, 20, anchor_x="center")
-        for btn in self.menu_buttons:
+        self._menu_title.draw()
+        self._menu_subtitle.draw()
+        for i, btn in enumerate(self.menu_buttons):
             l, r = btn["x"] - btn["w"]//2, btn["x"] + btn["w"]//2
             b, t = btn["y"] - btn["h"]//2, btn["y"] + btn["h"]//2
             arcade.draw_lrbt_rectangle_filled(l, r, b, t, arcade.color.DARK_BLUE)
             arcade.draw_lrbt_rectangle_outline(l, r, b, t, arcade.color.WHITE, 2)
-            arcade.draw_text(btn["label"], btn["x"], btn["y"], arcade.color.WHITE, 20,
-                             anchor_x="center", anchor_y="center")
+            lbl = self._menu_button_labels[i]
+            lbl.x = btn["x"]
+            lbl.y = btn["y"]
+            lbl.draw()
 
     def _draw_leaderboard(self):
-        arcade.draw_text("Local Leaderboard", SCREEN_WIDTH//2, SCREEN_HEIGHT - 40,
-                         arcade.color.YELLOW, 32, anchor_x="center")
-        arcade.draw_text("Press BACKSPACE to return", SCREEN_WIDTH//2, 30,
-                         arcade.color.WHITE, 14, anchor_x="center")
+        self._lb_title.draw()
+        self._lb_hint.draw()
         col_w = SCREEN_WIDTH // 3
         levels = ["easy", "medium", "hard"]
-        titles = ["Easy", "Medium", "Hard"]
         for i, level in enumerate(levels):
             xc = col_w * i + col_w // 2
-            arcade.draw_text(titles[i], xc, SCREEN_HEIGHT - 80, arcade.color.ORANGE, 22, anchor_x="center")
+            self._lb_level_titles[i].x = xc
+            self._lb_level_titles[i].y = SCREEN_HEIGHT - 80
+            self._lb_level_titles[i].draw()
             entries = self.leaderboard_data[level]
             if not entries:
-                arcade.draw_text("Empty", xc, SCREEN_HEIGHT - 120, arcade.color.GRAY, 16, anchor_x="center")
+                empty_text = arcade.Text("Empty", xc, SCREEN_HEIGHT - 120,
+                                         arcade.color.GRAY, 16, anchor_x="center")
+                empty_text.draw()
             else:
                 for j, e in enumerate(entries[:MAX_LEADERBOARD_ENTRIES]):
-                    text = f"{j+1}. {e['name']}: {e['score']}"
-                    arcade.draw_text(text, xc, SCREEN_HEIGHT - 120 - j*20,
-                                     arcade.color.WHITE, 14, anchor_x="center")
+                    text = arcade.Text(f"{j+1}. {e['name']}: {e['score']}",
+                                       xc, SCREEN_HEIGHT - 120 - j*20,
+                                       arcade.color.WHITE, 14, anchor_x="center")
+                    text.draw()
 
     def _draw_name_input(self):
-        arcade.draw_text("New High Score!", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+100,
-                         arcade.color.GREEN, 22, anchor_x="center")
-        arcade.draw_text("Enter name and press ENTER:", SCREEN_WIDTH//2, SCREEN_HEIGHT//2+50,
-                         arcade.color.WHITE, 18, anchor_x="center")
+        self._enter_name_title.draw()
+        self._enter_name_prompt.draw()
         l, r = SCREEN_WIDTH//2-150, SCREEN_WIDTH//2+150
         b, t = SCREEN_HEIGHT//2-20, SCREEN_HEIGHT//2+20
         arcade.draw_lrbt_rectangle_filled(l, r, b, t, arcade.color.DARK_GRAY)
         arcade.draw_lrbt_rectangle_outline(l, r, b, t, arcade.color.WHITE)
-        arcade.draw_text(self.entered_name, SCREEN_WIDTH//2, SCREEN_HEIGHT//2,
-                         arcade.color.WHITE, 18, anchor_x="center")
+        self._entered_name_text.text = self.entered_name
+        self._entered_name_text.x = SCREEN_WIDTH // 2
+        self._entered_name_text.y = SCREEN_HEIGHT // 2
+        self._entered_name_text.draw()
 
     def _draw_game(self):
         def dx(x):
@@ -706,11 +758,21 @@ class PacmanGame(BaseGame):
             arcade.draw_circle_filled(eye_x, eye_y, CELL_SIZE*0.08, COLOR_PUPIL)
 
         # HUD
-        arcade.draw_text(f"Score: {self.score}", 10, SCREEN_HEIGHT-30, arcade.color.WHITE, 16)
-        arcade.draw_text(f"Lives: {self.lives}", 10, SCREEN_HEIGHT-50, arcade.color.WHITE, 16)
+        self._score_text.text = f"Score: {self.score}"
+        self._score_text.draw()
+        self._lives_text.text = f"Lives: {self.lives}"
+        self._lives_text.draw()
         if self.boost_timer > 0 and self.boost_multiplier > 1:
-            arcade.draw_text(f"x{self.boost_multiplier} {self.boost_fruit_name} {self.boost_timer:.1f}s",
-                             10, SCREEN_HEIGHT-70, arcade.color.GREEN, 14)
+            self._boost_text.text = f"x{self.boost_multiplier} {self.boost_fruit_name} {self.boost_timer:.1f}s"
+            self._boost_text.draw()
+
+    def _draw_countdown(self):
+        if self.countdown_timer > 0:
+            number = math.ceil(self.countdown_timer)
+            self._countdown_text.text = str(number)
+        else:
+            self._countdown_text.text = "GO!"
+        self._countdown_text.draw()
 
     def _draw_fruit(self, fruit_type, cx, cy, size):
         if fruit_type == "strawberry":
@@ -737,13 +799,14 @@ class PacmanGame(BaseGame):
         ]
 
     def _draw_postgame_buttons(self):
-        arcade.draw_text("Game Over" if not self.win else "You Win!",
-                         SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 40,
-                         arcade.color.WHITE, 28, anchor_x="center")
-        for btn in self.postgame_buttons:
+        self._postgame_title.text = "Game Over" if not self.win else "You Win!"
+        self._postgame_title.draw()
+        for i, btn in enumerate(self.postgame_buttons):
             l, r = btn["x"] - btn["w"]//2, btn["x"] + btn["w"]//2
             b, t = btn["y"] - btn["h"]//2, btn["y"] + btn["h"]//2
             arcade.draw_lrbt_rectangle_filled(l, r, b, t, arcade.color.DARK_GREEN)
             arcade.draw_lrbt_rectangle_outline(l, r, b, t, arcade.color.WHITE, 2)
-            arcade.draw_text(btn["label"], btn["x"], btn["y"], arcade.color.WHITE, 14,
-                             anchor_x="center", anchor_y="center")
+            txt = self._postgame_button_texts[i]
+            txt.x = btn["x"]
+            txt.y = btn["y"]
+            txt.draw()
