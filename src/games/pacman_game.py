@@ -1,8 +1,6 @@
 """
 Pac-Man arcade game – integrated BaseGame view.
-Adaptive layout: background frame, HUD area, bordered game field.
-Ghosts become immune after being eaten, heart icons for lives,
-best score display for current difficulty.
+Adaptive layout, menu background (JPG), heart icons, best score, ghost immunity.
 """
 
 import arcade
@@ -15,7 +13,7 @@ from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
 # ----------------------------------------------------------------------
-# Constants (gameplay, visuals are now computed dynamically)
+# Constants
 # ----------------------------------------------------------------------
 PACMAN_SPEED = 120
 GHOST_SPEED = 90
@@ -96,7 +94,7 @@ LEADERBOARD_FILE = "data/leaderboards/pacman_leaderboard.json"
 MAX_LEADERBOARD_ENTRIES = 10
 
 # ----------------------------------------------------------------------
-# Helpers (no longer use global CELL_SIZE)
+# Helpers
 # ----------------------------------------------------------------------
 def load_local_leaderboard():
     if os.path.exists(LEADERBOARD_FILE):
@@ -114,8 +112,15 @@ def save_local_leaderboard(data):
     with open(LEADERBOARD_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+def can_move_to(col, row, dcol, drow, map_data):
+    new_col = col + dcol
+    new_row = row + drow
+    if new_col < 0 or new_col >= len(map_data[0]) or new_row < 0 or new_row >= len(map_data):
+        return False
+    return map_data[new_row][new_col] != '#'
+
 # ----------------------------------------------------------------------
-# Game objects – now receive cell_size and field offsets
+# Game objects
 # ----------------------------------------------------------------------
 class Pacman:
     def __init__(self, col, row, cell_size, field_left, field_bottom, rows, cols):
@@ -270,14 +275,6 @@ class Ghost:
         self.force_normal = True
 
 
-def can_move_to(col, row, dcol, drow, map_data):
-    new_col = col + dcol
-    new_row = row + drow
-    if new_col < 0 or new_col >= len(map_data[0]) or new_row < 0 or new_row >= len(map_data):
-        return False
-    return map_data[new_row][new_col] != '#'
-
-
 # ----------------------------------------------------------------------
 # Main Game View
 # ----------------------------------------------------------------------
@@ -313,11 +310,19 @@ class PacmanGame(BaseGame):
         self.postgame_buttons = []
         self.countdown_timer = 0.0
 
-        # Layout variables (computed in _start_game)
+        # Layout
         self.cell_size = 1
         self.field_left = 0
         self.field_bottom = 0
-        self.hud_top = 0   # top of HUD area
+        self.hud_top = 0
+
+        # ---------- ЗАГРУЗКА ФОНА МЕНЮ (JPG) ----------
+        try:
+            self.menu_bg = arcade.load_texture(":backgrounds:pacman_menu_bg.jpg")
+            print("Pac-Man menu background loaded successfully.")
+        except Exception as e:
+            print(f"WARNING: Could not load Pac-Man menu background: {e}")
+            self.menu_bg = None
 
         # ---------- Text objects ----------
         cx = SCREEN_WIDTH // 2
@@ -335,7 +340,6 @@ class PacmanGame(BaseGame):
             arcade.Text("Medium", 0, 0, arcade.color.ORANGE, 22, anchor_x="center"),
             arcade.Text("Hard", 0, 0, arcade.color.ORANGE, 22, anchor_x="center")
         ]
-        # HUD texts – positions will be set dynamically in _draw_game
         self._score_text = arcade.Text("Score: 0", 0, 0, arcade.color.WHITE, 16)
         self._best_score_text = arcade.Text("Best: --", 0, 0, arcade.color.GOLD, 14)
         self._boost_text = arcade.Text("", 0, 0, arcade.color.GREEN, 14)
@@ -361,7 +365,8 @@ class PacmanGame(BaseGame):
             {"label": "Leaderboards", "action": "leaderboard", "x": cx, "y": cy - 160, "w": 200, "h": 50},
         ]
 
-    def on_show(self):
+    def on_show_view(self):
+        """Вызывается при каждом показе view. Сбрасываем состояние в меню."""
         self.state = "menu"
         self.score = 0
         self.lives = 3
@@ -372,6 +377,16 @@ class PacmanGame(BaseGame):
 
     def on_draw(self):
         self.clear()
+        # Фон меню для всех экранов, кроме игровых
+        if self.state in ("menu", "leaderboard", "enter_name", "postgame"):
+            if self.menu_bg:
+                arcade.draw_texture_rect(self.menu_bg,
+                                         arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                                                     SCREEN_WIDTH, SCREEN_HEIGHT))
+            else:
+                # Чёрный фон, если изображение не загружено
+                arcade.draw_lrbt_rectangle_filled(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT, (0, 0, 0))
+
         if self.state == "menu":
             self._draw_menu()
         elif self.state == "leaderboard":
@@ -441,25 +456,17 @@ class PacmanGame(BaseGame):
                     break
 
     def _compute_layout(self):
-        """Рассчитывает размер клетки и отступы, чтобы поле вписалось в окно."""
-        map_rows = self.rows
-        map_cols = self.cols
-        # Резервируем верхние 50 пикселей под HUD, остальное под карту с небольшими полями
         HUD_HEIGHT = 50
-        MARGIN = 20   # поля вокруг карты
+        MARGIN = 20
         area_width = SCREEN_WIDTH - 2 * MARGIN
         area_height = SCREEN_HEIGHT - HUD_HEIGHT - 2 * MARGIN
-        cell_w = area_width / map_cols
-        cell_h = area_height / map_rows
-        cell_size = min(cell_w, cell_h)
-        # Центрируем карту в доступной области
-        field_width = map_cols * cell_size
-        field_height = map_rows * cell_size
-        field_left = (SCREEN_WIDTH - field_width) / 2
-        field_bottom = MARGIN + (area_height - field_height) / 2
-        self.cell_size = cell_size
-        self.field_left = field_left
-        self.field_bottom = field_bottom
+        cell_w = area_width / self.cols
+        cell_h = area_height / self.rows
+        self.cell_size = min(cell_w, cell_h)
+        field_width = self.cols * self.cell_size
+        field_height = self.rows * self.cell_size
+        self.field_left = (SCREEN_WIDTH - field_width) / 2
+        self.field_bottom = MARGIN + (area_height - field_height) / 2
         self.hud_top = SCREEN_HEIGHT - HUD_HEIGHT
 
     def _start_game(self):
@@ -746,19 +753,15 @@ class PacmanGame(BaseGame):
         self._entered_name_text.draw()
 
     def _draw_game(self):
-        # Общий фон всей игры
+        # Фон игры
         arcade.draw_lrbt_rectangle_filled(0, SCREEN_WIDTH, 0, SCREEN_HEIGHT, (10, 10, 30))
-
-        # Рамка вокруг всей игры
         arcade.draw_lrbt_rectangle_outline(2, SCREEN_WIDTH - 2, 2, SCREEN_HEIGHT - 2,
                                            arcade.color.DARK_GRAY, 4)
 
-        # HUD фон
+        # HUD
         arcade.draw_lrbt_rectangle_filled(0, SCREEN_WIDTH,
                                           self.hud_top, SCREEN_HEIGHT,
                                           (20, 20, 50, 200))
-
-        # Тексты счёта и рекорда в HUD
         self._score_text.text = f"Score: {self.score}"
         self._score_text.x = 15
         self._score_text.y = self.hud_top + 30
@@ -781,13 +784,12 @@ class PacmanGame(BaseGame):
             self._boost_text.y = self.hud_top + 30
             self._boost_text.draw()
 
-        # Сердечки жизней в правой части HUD
         heart_x = SCREEN_WIDTH - 30
         heart_y = self.hud_top + 15
         for i in range(self.lives):
             self._draw_heart(heart_x - i * 25, heart_y, 8)
 
-        # Рамка игрового поля
+        # Рамка поля
         field_left = self.field_left
         field_bottom = self.field_bottom
         field_width = self.cols * self.cell_size
@@ -864,7 +866,6 @@ class PacmanGame(BaseGame):
             arcade.draw_circle_filled(eye_x, eye_y, self.cell_size * 0.08, COLOR_PUPIL)
 
     def _draw_heart(self, x, y, size):
-        """Рисует маленькое сердечко."""
         arcade.draw_arc_filled(x - size * 0.5, y + size * 0.5, size, size,
                                arcade.color.RED, 0, 180)
         arcade.draw_arc_filled(x + size * 0.5, y + size * 0.5, size, size,
@@ -875,7 +876,6 @@ class PacmanGame(BaseGame):
                                     arcade.color.RED)
 
     def _draw_countdown(self):
-        # Во время отсчёта рисуем поверх всего
         if self.countdown_timer > 0:
             number = math.ceil(self.countdown_timer)
             self._countdown_text.text = str(number)
