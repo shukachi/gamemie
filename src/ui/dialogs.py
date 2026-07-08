@@ -3,7 +3,27 @@ UI components and dialogs.
 """
 
 import arcade
+import random
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT, DIALOG_WIDTH, DIALOG_HEIGHT
+
+_BG_STAR_COLOR = (255, 255, 255, 123)
+_FG_STAR_COLORS = [
+    arcade.color.WHITE,
+    arcade.color.BABY_BLUE,
+    arcade.color.BUFF,
+    arcade.color.ALIZARIN_CRIMSON,
+]
+
+
+def _make_starfield(batch: arcade.shape_list.ShapeElementList,
+                    color=_BG_STAR_COLOR, random_color: bool = False) -> None:
+    for _ in range(250):
+        x = random.randint(0, SCREEN_WIDTH)
+        y = random.randint(0, SCREEN_HEIGHT)
+        w = random.randint(1, 3)
+        h = random.randint(1, 2)
+        c = random.choice(_FG_STAR_COLORS) if random_color else color
+        batch.append(arcade.shape_list.create_rectangle_filled(x, y, w, h, c))
 
 
 class ConfirmationDialog(arcade.View):
@@ -96,34 +116,66 @@ class ConfirmationDialog(arcade.View):
 class LeaderboardView(arcade.View):
     """Leaderboard display view."""
 
+    _FG_SPEED = 200
+    _BG_SPEED = 80
+
     def __init__(self, title: str, entries: list, on_close_callback):
         super().__init__()
         self.on_close_callback = on_close_callback
-        self.background_color = arcade.color.DARK_BLUE_GRAY
 
+        # Parallax star layers (2 tiles each for seamless loop)
+        self._fg1 = arcade.shape_list.ShapeElementList()
+        self._fg2 = arcade.shape_list.ShapeElementList()
+        self._fg2.center_y = SCREEN_HEIGHT
+        self._bg1 = arcade.shape_list.ShapeElementList()
+        self._bg2 = arcade.shape_list.ShapeElementList()
+        self._bg2.center_y = SCREEN_HEIGHT
+        _make_starfield(self._fg1, random_color=True)
+        _make_starfield(self._fg2, random_color=True)
+        _make_starfield(self._bg1)
+        _make_starfield(self._bg2)
+
+        cx = SCREEN_WIDTH // 2
         self._title_text = arcade.Text(
-            title, 50, SCREEN_HEIGHT - 50,
-            font_size=24, color=arcade.color.WHITE, bold=True,
+            title, cx, SCREEN_HEIGHT - 48,
+            font_size=26, color=(255, 215, 0), bold=True,
+            anchor_x="center", anchor_y="center",
         )
         self._entry_texts = [
             arcade.Text(
-                f"{i + 1}. {e.name}: {e.score}",
-                100, SCREEN_HEIGHT - 120 - i * 40,
-                font_size=14, color=arcade.color.LIGHT_YELLOW,
+                f"{i + 1}.  {e.name}  —  {e.score}",
+                cx, SCREEN_HEIGHT - 120 - i * 42,
+                font_size=15, color=arcade.color.LIGHT_YELLOW,
+                anchor_x="center", anchor_y="center",
             )
             for i, e in enumerate(entries)
         ]
         self._hint = arcade.Text(
-            "Press ESC or click to close", 50, 50,
-            font_size=12, color=arcade.color.LIGHT_GRAY,
+            "ESC или клик — закрыть",
+            cx, 38,
+            font_size=11, color=arcade.color.LIGHT_GRAY,
+            anchor_x="center", anchor_y="center",
         )
 
     def on_draw(self):
         self.clear()
+        self._bg1.draw()
+        self._bg2.draw()
+        self._fg1.draw()
+        self._fg2.draw()
         self._title_text.draw()
         for t in self._entry_texts:
             t.draw()
         self._hint.draw()
+
+    def on_update(self, delta_time: float):
+        self._fg1.center_y -= self._FG_SPEED * delta_time
+        self._fg2.center_y -= self._FG_SPEED * delta_time
+        self._bg1.center_y -= self._BG_SPEED * delta_time
+        self._bg2.center_y -= self._BG_SPEED * delta_time
+        for lst in (self._fg1, self._fg2, self._bg1, self._bg2):
+            if lst.center_y < -SCREEN_HEIGHT:
+                lst.center_y = SCREEN_HEIGHT
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE:
