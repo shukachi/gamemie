@@ -5,8 +5,29 @@ Player walks around and interacts with arcade machines and cashier.
 
 import arcade
 import math
+import os
+from PIL import Image as _PILImage
 from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_SPEED
+
+def _load_coin_texture():
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "assets", "fonts", "coin_static.png",
+    )
+    try:
+        img = _PILImage.open(path).convert("RGBA")
+        data = img.load()
+        w, h = img.size
+        # Replace near-white pixels with transparent
+        for y in range(h):
+            for x in range(w):
+                r, g, b, a = data[x, y]
+                if r > 220 and g > 220 and b > 220:
+                    data[x, y] = (r, g, b, 0)
+        return arcade.Texture(image=img)
+    except Exception:
+        return None
 
 # Interaction zone centres as fractions of (SCREEN_WIDTH, SCREEN_HEIGHT).
 # Measured from fix.png (614×347 screenshot of 1280×720 game).
@@ -52,12 +73,19 @@ class ArcadeMachine:
             color=(144, 238, 144), font_size=22, bold=True,
             anchor_x="center", anchor_y="center",
         )
+        self._block_text = arcade.Text(
+            "BLOCK", x=x, y=text_y,
+            color=(220, 50, 50), font_size=22, bold=True,
+            anchor_x="center", anchor_y="center",
+        )
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
-        """Show 'ИГРАТЬ' prompt when player is inside the interaction zone."""
-        if not is_near or self.locked:
+        if not is_near:
             return
-        self._play_text.draw()
+        if self.locked:
+            self._block_text.draw()
+        else:
+            self._play_text.draw()
 
     def is_player_nearby(self, player_x: float, player_y: float) -> bool:
         """Check if player is inside the rectangular interaction zone."""
@@ -159,6 +187,14 @@ class LobbyView(arcade.View):
             color=arcade.color.LIGHT_GRAY, font_size=10,
         )
 
+        # Coin HUD
+        self._coin_texture = _load_coin_texture()
+        self._coin_size = 28
+        self._coins_text = arcade.Text(
+            "x0", x=42, y=SCREEN_HEIGHT - 53,
+            color=(255, 215, 80), font_size=13, bold=True,
+        )
+
     def _create_machines(self):
         """Create arcade machines positioned to match the background art."""
         machine_ids = self.registry.get_machine_ids()
@@ -205,6 +241,14 @@ class LobbyView(arcade.View):
         self._score_text.text = f"Score: {self.player_state.total_score}"
         self._score_text.draw()
         self._instructions_text.draw()
+        if self.player_state.attempt_active:
+            self._coins_text.text = f"x{self.player_state.coins}"
+            self._coins_text.draw()
+            if self._coin_texture:
+                arcade.draw_texture_rect(
+                    self._coin_texture,
+                    arcade.XYWH(20, SCREEN_HEIGHT - 46, self._coin_size, self._coin_size),
+                )
 
     def _draw_normal(self):
         arcade.draw_texture_rect(
@@ -299,6 +343,7 @@ class LobbyView(arcade.View):
 
         self._zones_near_prev = zones_near_now
 
+
     def on_key_press(self, key: int, modifiers: int):
         kb = cfg.KEY_BINDINGS
         if key == kb['up']:
@@ -334,17 +379,17 @@ class LobbyView(arcade.View):
 
     def _handle_interaction(self):
         """Handle player interaction with machines or cashier."""
-        # Check machines
         for machine in self.machines:
             if machine.is_player_nearby(self.player_x, self.player_y):
-                if not self.player_state.is_machine_locked(machine.machine_id):
-                    self._show_machine_dialog(machine)
+                if self.player_state.is_machine_locked(machine.machine_id):
+                    return
+                if not self.player_state.attempt_active or self.player_state.coins <= 0:
+                    return
+                self._show_machine_dialog(machine)
                 return
 
-        # Check cashier
         if self.cashier.is_player_nearby(self.player_x, self.player_y):
             self._show_cashier_menu()
-            return
 
     def _show_machine_dialog(self, machine: ArcadeMachine):
         """Show confirmation dialog for a machine."""
@@ -366,15 +411,14 @@ class LobbyView(arcade.View):
     def _start_game(self, machine_id: str):
         """Start a game on a machine."""
         def on_game_finish(score: int, completed: bool):
-            if completed:
-                self.player_state.add_score(machine_id, score)
-                self.player_state.spend_attempt(machine_id)
-                self.leaderboard.add_machine_score(machine_id, "Player", score)
-
-                if self.player_state.all_machines_locked():
-                    # Submit to global leaderboard
-                    self.leaderboard.add_global_score("Player", self.player_state.total_score)
-
+            # Coin and attempt are spent regardless of outcome
+            self.player_state.spend_attempt(machine_id)
+            self.player_state.spend_coin()
+            # Accumulate score (even 0 is valid — just didn't score)
+            self.player_state.add_score(machine_id, score)
+            if score > 0:
+                name = self.player_state.player_name or "Player"
+                self.leaderboard.add_machine_score(machine_id, name, score)
             self.window.show_view(self)
 
         game = self.registry.create_game(machine_id, on_game_finish)
