@@ -64,6 +64,7 @@ class ArcadeMachine:
         self.x = x
         self.y = y
         self.locked = False
+        self.broken = False
         self.zone_w = ZONE_W_FRAC * SCREEN_WIDTH
         self.zone_h = ZONE_H_FRAC * SCREEN_HEIGHT
         offset = SCREEN_HEIGHT * 0.13
@@ -78,11 +79,18 @@ class ArcadeMachine:
             color=(220, 50, 50), font_size=22, bold=True,
             anchor_x="center", anchor_y="center",
         )
+        self._broken_text = arcade.Text(
+            "BROKEN", x=x, y=text_y,
+            color=(220, 30, 30), font_size=22, bold=True,
+            anchor_x="center", anchor_y="center",
+        )
 
     def draw(self, player_x: float, player_y: float, is_near: bool = False):
         if not is_near:
             return
-        if self.locked:
+        if self.broken:
+            self._broken_text.draw()
+        elif self.locked:
             self._block_text.draw()
         else:
             self._play_text.draw()
@@ -199,6 +207,7 @@ class LobbyView(arcade.View):
         """Create arcade machines positioned to match the background art."""
         machine_ids = self.registry.get_machine_ids()
         self.player_state.initialize_machines(machine_ids)
+        broken_ids = set(machine_ids[-3:])  # last 3 machines are broken
 
         for i, machine_id in enumerate(machine_ids):
             if i >= len(ZONE_POSITIONS):
@@ -209,6 +218,7 @@ class LobbyView(arcade.View):
                 machine_id, machine_def['name'],
                 x_frac * SCREEN_WIDTH, y_frac * SCREEN_HEIGHT,
             )
+            machine.broken = machine_id in broken_ids
             self.machines.append(machine)
 
     def on_show_view(self):
@@ -381,6 +391,8 @@ class LobbyView(arcade.View):
         """Handle player interaction with machines or cashier."""
         for machine in self.machines:
             if machine.is_player_nearby(self.player_x, self.player_y):
+                if machine.broken:
+                    return
                 if self.player_state.is_machine_locked(machine.machine_id):
                     return
                 if not self.player_state.attempt_active or self.player_state.coins <= 0:
