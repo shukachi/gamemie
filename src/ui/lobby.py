@@ -196,30 +196,65 @@ class LobbyView(arcade.View):
         """Render the lobby."""
         self.clear()
 
-        # Draw background
-        arcade.draw_texture_rect(
-            self.background_texture,
-            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT)
-        )
-
-        # Draw machines
-        for machine in self.machines:
-            is_locked = self.player_state.is_machine_locked(machine.machine_id)
-            machine.locked = is_locked
-            is_near = machine.is_player_nearby(self.player_x, self.player_y)
-            machine.draw(self.player_x, self.player_y, is_near)
-
-        # Draw cashier
-        cashier_near = self.cashier.is_player_nearby(self.player_x, self.player_y)
-        self.cashier.draw(self.player_x, self.player_y, cashier_near)
-
-        # Draw player
-        self.player_sprite.draw()
+        if cfg.POTATO_MODE:
+            self._draw_potato()
+        else:
+            self._draw_normal()
 
         # Draw UI
         self._score_text.text = f"Score: {self.player_state.total_score}"
         self._score_text.draw()
         self._instructions_text.draw()
+
+    def _draw_normal(self):
+        arcade.draw_texture_rect(
+            self.background_texture,
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT)
+        )
+        for machine in self.machines:
+            is_locked = self.player_state.is_machine_locked(machine.machine_id)
+            machine.locked = is_locked
+            is_near = machine.is_player_nearby(self.player_x, self.player_y)
+            machine.draw(self.player_x, self.player_y, is_near)
+        cashier_near = self.cashier.is_player_nearby(self.player_x, self.player_y)
+        self.cashier.draw(self.player_x, self.player_y, cashier_near)
+        self.player_sprite.draw()
+
+    def _draw_potato(self):
+        # Purple background
+        arcade.draw_rect_filled(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT),
+            (72, 0, 100)
+        )
+        # Machines as rectangles
+        for machine in self.machines:
+            is_locked = self.player_state.is_machine_locked(machine.machine_id)
+            machine.locked = is_locked
+            is_near = machine.is_player_nearby(self.player_x, self.player_y)
+            fill = (80, 80, 90) if is_locked else (100, 140, 220)
+            arcade.draw_rect_filled(
+                arcade.XYWH(machine.x, machine.y, machine.zone_w, machine.zone_h), fill
+            )
+            arcade.draw_rect_outline(
+                arcade.XYWH(machine.x, machine.y, machine.zone_w, machine.zone_h),
+                arcade.color.WHITE, 2
+            )
+            machine.draw(self.player_x, self.player_y, is_near)
+        # Cashier as rectangle
+        cashier_near = self.cashier.is_player_nearby(self.player_x, self.player_y)
+        cw = self.cashier.INTERACTION_RANGE * 1.4
+        ch = self.cashier.INTERACTION_RANGE * 1.4
+        fill = (230, 200, 0) if cashier_near else (160, 140, 0)
+        arcade.draw_rect_filled(
+            arcade.XYWH(self.cashier.x, self.cashier.y, cw, ch), fill
+        )
+        arcade.draw_rect_outline(
+            arcade.XYWH(self.cashier.x, self.cashier.y, cw, ch), arcade.color.WHITE, 2
+        )
+        self.cashier._label.color = arcade.color.GREEN if cashier_near else arcade.color.WHITE
+        self.cashier._label.draw()
+        # Player as white circle
+        arcade.draw_circle_filled(self.player_x, self.player_y, 20, arcade.color.WHITE)
 
     def on_update(self, delta_time: float):
         """Update lobby logic."""
