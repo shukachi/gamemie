@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 {"fullscreen": false, "resolution": [1280, 720], "lobby_music_volume": 0.0, "settings_music_volume": 0.0, "potato_mode": false}
+=======
+{"fullscreen": true, "resolution": [1280, 720], "lobby_music_volume": 0.5, "settings_music_volume": 0.5, "potato_mode": false}
+>>>>>>> 1c5ea96dbe9649cadd02e4dff66041c6a49be7d2

@@ -10,7 +10,11 @@ from PIL import Image
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 AVIF_PATH   = os.path.join(PROJECT_DIR, "assets", "fonts", "icon.avif")
 ICO_PATH    = os.path.join(PROJECT_DIR, "assets", "fonts", "icon.ico")
-DESKTOP     = os.path.join(os.path.expanduser("~"), "Desktop")
+DESKTOP     = subprocess.check_output(
+    ["powershell", "-NoProfile", "-Command",
+     "[Environment]::GetFolderPath('Desktop')"],
+    text=True
+).strip()
 SHORTCUT    = os.path.join(DESKTOP, "Gamemie.lnk")
 PYTHON      = sys.executable
 MAIN        = os.path.join(PROJECT_DIR, "main.py")

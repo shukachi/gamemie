@@ -35,8 +35,8 @@ MACHINE_START_Y = 200
 ATTEMPTS_PER_MACHINE = 3
 
 # UI
-DIALOG_WIDTH = 400
-DIALOG_HEIGHT = 300
+DIALOG_WIDTH = 675
+DIALOG_HEIGHT = 500
 
 # Key bindings (mutable — changed at runtime by controls dialog)
 KEY_BINDINGS = {
