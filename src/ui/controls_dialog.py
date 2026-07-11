@@ -20,12 +20,11 @@ def _key_label(code: int) -> str:
 
 class CashierMenuView(arcade.View):
 
-    W = int(SCREEN_WIDTH * 0.30)
-    H = int(SCREEN_HEIGHT * 0.68)
+    W = int(SCREEN_WIDTH * 0.34)
     CX = SCREEN_WIDTH // 2
     CY = SCREEN_HEIGHT // 2
     BTN_H = 44
-    BTN_GAP = 12
+    BTN_GAP = 10
 
     def __init__(self, player_state, leaderboard, lobby_view):
         super().__init__()
@@ -36,6 +35,7 @@ class CashierMenuView(arcade.View):
 
     def _build_buttons(self):
         labels = ["УПРАВЛЕНИЕ", "ГРАФИКА", "ЗВУК"]
+        labels += ["НАЧАТЬ ПОПЫТКУ", "ЗАКОНЧИТЬ ПОПЫТКУ"]
         if self.player_state.all_machines_locked():
             labels.append("СБРОСИТЬ ПОПЫТКИ")
         else:
@@ -43,9 +43,12 @@ class CashierMenuView(arcade.View):
         labels += ["ВЫЙТИ ИЗ ИГРЫ", "ЗАКРЫТЬ"]
         self._buttons = labels
 
+        n = len(labels)
+        self.H = n * (self.BTN_H + self.BTN_GAP) - self.BTN_GAP + 100
+
         self._btn_texts = [
             arcade.Text(lbl, x=self.CX, y=0,
-                        color=arcade.color.WHITE, font_size=14, bold=True,
+                        color=arcade.color.WHITE, font_size=13, bold=True,
                         anchor_x="center", anchor_y="center")
             for lbl in labels
         ]
@@ -63,6 +66,13 @@ class CashierMenuView(arcade.View):
     def _hit(self, x: float, y: float, idx: int) -> bool:
         return abs(x - self.CX) < self.W // 2 - 20 and abs(y - self._btn_y(idx)) < self.BTN_H // 2
 
+    def _is_disabled(self, lbl: str) -> bool:
+        if lbl == "НАЧАТЬ ПОПЫТКУ":
+            return self.player_state.attempt_active
+        if lbl == "ЗАКОНЧИТЬ ПОПЫТКУ":
+            return not self.player_state.attempt_active
+        return False
+
     def on_draw(self):
         self.clear()
         arcade.draw_rect_filled(
@@ -78,7 +88,22 @@ class CashierMenuView(arcade.View):
         for i, text_obj in enumerate(self._btn_texts):
             by = self._btn_y(i)
             lbl = self._buttons[i]
-            btn_color = (100, 25, 25, 220) if lbl == "ВЫЙТИ ИЗ ИГРЫ" else (60, 50, 30, 200)
+            disabled = self._is_disabled(lbl)
+            if disabled:
+                btn_color = (40, 40, 40, 180)
+                text_obj.color = (120, 120, 120, 200)
+            elif lbl == "ВЫЙТИ ИЗ ИГРЫ":
+                btn_color = (100, 25, 25, 220)
+                text_obj.color = arcade.color.WHITE
+            elif lbl == "НАЧАТЬ ПОПЫТКУ":
+                btn_color = (30, 80, 30, 220)
+                text_obj.color = (144, 238, 144)
+            elif lbl == "ЗАКОНЧИТЬ ПОПЫТКУ":
+                btn_color = (80, 50, 10, 220)
+                text_obj.color = (255, 200, 80)
+            else:
+                btn_color = (60, 50, 30, 200)
+                text_obj.color = arcade.color.WHITE
             arcade.draw_rect_filled(
                 arcade.XYWH(self.CX, by, self.W - 40, self.BTN_H), btn_color
             )
@@ -93,35 +118,128 @@ class CashierMenuView(arcade.View):
         if button != arcade.MOUSE_BUTTON_LEFT:
             return
         for i, lbl in enumerate(self._buttons):
-            if self._hit(x, y, i):
-                if lbl == "УПРАВЛЕНИЕ":
-                    self.window.show_view(
-                        ControlsView(on_close=lambda: self.window.show_view(self))
-                    )
-                elif lbl == "ГРАФИКА":
-                    self.window.show_view(
-                        GraphicsView(on_close=lambda: self.window.show_view(self))
-                    )
-                elif lbl == "ЗВУК":
-                    self.window.show_view(
-                        SoundView(on_close=lambda: self.window.show_view(self),
-                                  lobby_view=self.lobby_view)
-                    )
-                elif lbl == "ТАБЛИЦА ЛИДЕРОВ":
-                    from src.ui.dialogs import LeaderboardView
-                    entries = self.leaderboard.get_global_leaderboard()
-                    self.window.show_view(
-                        LeaderboardView("Club Leaderboard", entries,
-                                        lambda: self.window.show_view(self))
-                    )
-                elif lbl == "СБРОСИТЬ ПОПЫТКИ":
-                    self.player_state.reset_all_attempts()
-                    self._build_buttons()
-                elif lbl == "ВЫЙТИ ИЗ ИГРЫ":
-                    self.window.show_view(ExitConfirmView(back_view=self))
-                elif lbl == "ЗАКРЫТЬ":
-                    self.window.show_view(self.lobby_view)
+            if not self._hit(x, y, i):
+                continue
+            if self._is_disabled(lbl):
                 return
+            if lbl == "УПРАВЛЕНИЕ":
+                self.window.show_view(
+                    ControlsView(on_close=lambda: self.window.show_view(self))
+                )
+            elif lbl == "ГРАФИКА":
+                self.window.show_view(
+                    GraphicsView(on_close=lambda: self.window.show_view(self))
+                )
+            elif lbl == "ЗВУК":
+                self.window.show_view(
+                    SoundView(on_close=lambda: self.window.show_view(self),
+                              lobby_view=self.lobby_view)
+                )
+            elif lbl == "НАЧАТЬ ПОПЫТКУ":
+                self.window.show_view(
+                    NameEntryView(
+                        on_confirm=self._on_attempt_started,
+                        back_view=self,
+                    )
+                )
+            elif lbl == "ЗАКОНЧИТЬ ПОПЫТКУ":
+                self._end_attempt()
+            elif lbl == "ТАБЛИЦА ЛИДЕРОВ":
+                from src.ui.dialogs import LeaderboardView
+                entries = self.leaderboard.get_global_leaderboard()
+                self.window.show_view(
+                    LeaderboardView("Club Leaderboard", entries,
+                                    lambda: self.window.show_view(self))
+                )
+            elif lbl == "СБРОСИТЬ ПОПЫТКИ":
+                self.player_state.reset_all_attempts()
+                self._build_buttons()
+            elif lbl == "ВЫЙТИ ИЗ ИГРЫ":
+                self.window.show_view(ExitConfirmView(back_view=self))
+            elif lbl == "ЗАКРЫТЬ":
+                self.window.show_view(self.lobby_view)
+            return
+
+    def _on_attempt_started(self, name: str):
+        self.player_state.start_attempt(name, 15)
+        self._build_buttons()
+        self.window.show_view(self)
+
+    def _end_attempt(self):
+        name = self.player_state.player_name or "Player"
+        self.leaderboard.add_global_score(name, self.player_state.total_score)
+        self.player_state.end_attempt()
+        self._build_buttons()
+        from src.ui.dialogs import LeaderboardView
+        entries = self.leaderboard.get_global_leaderboard()
+        self.window.show_view(
+            LeaderboardView("Club Leaderboard", entries,
+                            lambda: self.window.show_view(self))
+        )
+
+
+# ─────────────────────────── Name Entry View ───────────────────────────
+
+class NameEntryView(arcade.View):
+    """Player name input, shown after 'Начать попытку'."""
+
+    MAX_LEN = 16
+
+    def __init__(self, on_confirm, back_view):
+        super().__init__()
+        self._on_confirm = on_confirm
+        self._back_view = back_view
+        self._name = ""
+        cx, cy = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
+        self._title = arcade.Text(
+            "ВВЕДИТЕ ИМЯ ИГРОКА",
+            cx, cy + 90, font_size=22, color=(255, 215, 0), bold=True,
+            anchor_x="center", anchor_y="center",
+        )
+        self._sub = arcade.Text(
+            "Вам будет выдано 15 монет",
+            cx, cy + 55, font_size=13, color=arcade.color.LIGHT_GRAY,
+            anchor_x="center", anchor_y="center",
+        )
+        self._name_text = arcade.Text(
+            "", cx, cy, font_size=20, color=arcade.color.WHITE, bold=True,
+            anchor_x="center", anchor_y="center",
+        )
+        self._hint = arcade.Text(
+            "Enter — подтвердить  |  ESC — отмена",
+            cx, cy - 70, font_size=11, color=arcade.color.LIGHT_GRAY,
+            anchor_x="center", anchor_y="center",
+        )
+
+    def on_draw(self):
+        self.clear()
+        arcade.draw_rect_filled(
+            arcade.XYWH(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT),
+            (12, 8, 30),
+        )
+        cx, cy = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
+        arcade.draw_rect_filled(arcade.XYWH(cx, cy, 440, 56), (35, 35, 60, 230))
+        arcade.draw_rect_outline(arcade.XYWH(cx, cy, 440, 56), arcade.color.LIGHT_CYAN, 2)
+        self._title.draw()
+        self._sub.draw()
+        self._name_text.text = (self._name or "") + "|"
+        self._name_text.draw()
+        self._hint.draw()
+
+    def on_key_press(self, key, modifiers):
+        if key == arcade.key.ENTER:
+            self._on_confirm(self._name.strip() or "Player")
+        elif key == arcade.key.ESCAPE:
+            self.window.show_view(self._back_view)
+        elif key == arcade.key.BACKSPACE:
+            self._name = self._name[:-1]
+        elif key == arcade.key.SPACE and len(self._name) < self.MAX_LEN:
+            self._name += " "
+        elif arcade.key.A <= key <= arcade.key.Z and len(self._name) < self.MAX_LEN:
+            ch = chr(key).upper() if modifiers & arcade.key.MOD_SHIFT else chr(key).lower()
+            self._name += ch
+        elif arcade.key.KEY_0 <= key <= arcade.key.KEY_9 and len(self._name) < self.MAX_LEN:
+            self._name += chr(key)
 
 
 # ─────────────────────────── Controls View ───────────────────────────

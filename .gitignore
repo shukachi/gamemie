@@ -37,3 +37,8 @@ Thumbs.db
 # Project specific
 data/leaderboards/*.json
 *.log
+
+# PyInstaller
+*.spec
+build/
+dist/

@@ -15,6 +15,7 @@ def _register_resources() -> None:
     arcade.resources.add_resource_handle("player", os.path.join(BASE, "assets", "sprites", "player"))
     arcade.resources.add_resource_handle("cashier", os.path.join(BASE, "assets", "sprites", "cashier"))
     arcade.resources.add_resource_handle("sounds", os.path.join(BASE, "assets", "sounds"))
+    arcade.resources.add_resource_handle("fonts", os.path.join(BASE, "assets", "fonts"))
 
 
 def main():
