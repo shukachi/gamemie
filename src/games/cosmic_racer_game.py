@@ -1,15 +1,14 @@
 import arcade
 import random
+import math
 from src.games.base_game import BaseGame
 from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
-# Константы физики
 GRAVITY = 0.4
 FLAP_SPEED = 7.5
 PIPE_SPAWN_RATE = 100
 
-# Цвета интерфейса в стиле остальных автоматов клуба
 COLOR_MENU_BG = (20, 20, 35)
 COLOR_BTN_BG = (40, 40, 70)
 COLOR_BTN_OUTLINE = (255, 255, 255)
@@ -17,16 +16,13 @@ COLOR_LASER_CORE = (255, 255, 255)
 
 
 class CosmicRacerGame(BaseGame):
-    """Космический Flappy Bird, полностью адаптированный под стандарты Arcade Club."""
 
     def __init__(self, machine_id: str, on_finish_callback):
         super().__init__("CosmicRacer", machine_id, on_finish_callback)
 
-        # Состояния строго по примеру встроенных игр: "menu", "playing", "postgame"
         self.state = "menu"
         self.difficulty = "medium"
 
-        # Списки спрайтов
         self.player_list = arcade.SpriteList()
         self.pipe_list = arcade.SpriteList()
         self.background_list = arcade.SpriteList()
@@ -35,17 +31,19 @@ class CosmicRacerGame(BaseGame):
         self.game_over = False
         self.spawn_timer = 0
 
-        # Кнопки для экранов (структура как в Сапере/Тетрисе)
+
+        self.match_timer = 60.0
+        self.countdown_timer = 3.0
+        self.pulse_time = 0.0
+
         self.menu_buttons = []
         self.postgame_buttons = []
         self._build_buttons()
 
-        # Звуковые эффекты из встроенных ресурсов
         self.jump_sound = arcade.load_sound(":resources:sounds/laser1.wav")
         self.game_over_sound = arcade.load_sound(":resources:sounds/explosion1.wav")
 
     def _build_buttons(self):
-        """Сборка геометрии кнопок для меню и финиша."""
         cx = SCREEN_WIDTH // 2
         cy = SCREEN_HEIGHT // 2
 
@@ -62,7 +60,6 @@ class CosmicRacerGame(BaseGame):
 
     @staticmethod
     def create_laser_texture(width: int, height: int) -> arcade.Texture:
-        """Программная генерация неоновой текстуры лазера с помощью Pillow."""
         from PIL import Image, ImageDraw
         if height <= 0:
             height = 1
@@ -78,14 +75,12 @@ class CosmicRacerGame(BaseGame):
         return arcade.Texture(image)
 
     def on_show_view(self):
-        """Вызывается при переключении на этот автомат."""
         self.state = "menu"
         self.score = 0
         self.game_over = False
         self._build_buttons()
 
     def _start_game(self):
-        """Инициализация игрового процесса."""
         self.player_list = arcade.SpriteList()
         self.pipe_list = arcade.SpriteList()
         self.background_list = arcade.SpriteList()
@@ -94,7 +89,10 @@ class CosmicRacerGame(BaseGame):
         self.game_over = False
         self.spawn_timer = 0
 
-        # Космический фон
+        self.match_timer = 60.0
+        self.countdown_timer = 3.9
+        self.pulse_time = 0.0
+
         background = arcade.Sprite(":resources:images/backgrounds/stars.png")
         background.width = SCREEN_WIDTH
         background.height = SCREEN_HEIGHT
@@ -102,7 +100,6 @@ class CosmicRacerGame(BaseGame):
         background.center_y = SCREEN_HEIGHT // 2
         self.background_list.append(background)
 
-        # Конфигурация сложности
         if self.difficulty == "easy":
             self.pipe_speed = 2.5
             self.pipe_gap = 195
@@ -113,7 +110,6 @@ class CosmicRacerGame(BaseGame):
             self.pipe_speed = 3.5
             self.pipe_gap = 165
 
-        # Спавн космолёта игрока
         self.bird = arcade.Sprite(":resources:images/space_shooter/playerShip3_orange.png", scale=0.5)
         self.bird.center_x = 160
         self.bird.center_y = SCREEN_HEIGHT // 2
@@ -122,16 +118,15 @@ class CosmicRacerGame(BaseGame):
         self.player_list.append(self.bird)
 
         self.spawn_pipes()
-        self.state = "playing"
+
+        self.state = "countdown"
 
     def spawn_pipes(self):
-        """Генерация препятствий."""
         gap_center = random.randint(160, SCREEN_HEIGHT - 160)
         bottom_pipe_height = gap_center - (self.pipe_gap // 2)
         top_pipe_height = SCREEN_HEIGHT - gap_center - (self.pipe_gap // 2)
         pipe_width = 40
 
-        # Нижнее препятствие
         bottom_texture = self.create_laser_texture(pipe_width, bottom_pipe_height)
         bottom_pipe = arcade.Sprite(bottom_texture)
         bottom_pipe.center_x = SCREEN_WIDTH + 50
@@ -139,7 +134,6 @@ class CosmicRacerGame(BaseGame):
         bottom_pipe.change_x = -self.pipe_speed
         bottom_pipe.passed = False
 
-        # Верхнее препятствие
         top_texture = self.create_laser_texture(pipe_width, top_pipe_height)
         top_pipe = arcade.Sprite(top_texture)
         top_pipe.center_x = SCREEN_WIDTH + 50
@@ -154,16 +148,45 @@ class CosmicRacerGame(BaseGame):
 
         if self.state == "menu":
             self._draw_menu()
-        elif self.state in ("playing", "postgame"):
+        elif self.state in ("playing", "postgame", "countdown"):  # --- ДОБАВЛЕНО состояние "countdown" ---
             if self.background_list:
                 self.background_list.draw()
             self.pipe_list.draw()
             self.player_list.draw()
 
-            # HUD в верхнем левом углу
             arcade.draw_text(f"Score: {self.score}", 20, SCREEN_HEIGHT - 35, arcade.color.WHITE, 16, bold=True)
             arcade.draw_text(f"Difficulty: {self.difficulty.upper()}", 20, SCREEN_HEIGHT - 60, arcade.color.LIGHT_GRAY,
                              12)
+
+            if self.state == "playing":
+                display_time = max(0, math.ceil(self.match_timer))
+                arcade.draw_text(f"TIME: {display_time}s", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40,
+                                 arcade.color.CYAN, 20, anchor_x="center", bold=True, font_name="Impact")
+
+            if self.state == "countdown":
+                current_digit = math.floor(self.countdown_timer)
+                if current_digit >= 1:
+                    fraction = self.countdown_timer - current_digit
+
+                    neon_glow = int(180 + math.sin(self.pulse_time * 15) * 75)
+
+                    r = int(255 - (1.0 - fraction) * 255)
+                    g = int(50 + (1.0 - fraction) * 205)
+                    b = int(150 + (1.0 - fraction) * 105)
+
+                    font_size = int(40 + fraction * 70)
+
+                    arcade.draw_text(str(current_digit), SCREEN_WIDTH // 2 + 4, SCREEN_HEIGHT // 2 - 4,
+                                     (40, 10, 50, 150), font_size, anchor_x="center", anchor_y="center",
+                                     font_name="Impact", bold=True)
+
+                    arcade.draw_text(str(current_digit), SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                                     (r, g, b, 255), font_size, anchor_x="center", anchor_y="center",
+                                     font_name="Impact", bold=True)
+                else:
+                    arcade.draw_text("LAUNCH!", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                                     arcade.color.NEON_GREEN, 60, anchor_x="center", anchor_y="center",
+                                     font_name="Impact", bold=True)
 
             if self.state == "postgame":
                 self._draw_postgame()
@@ -205,26 +228,34 @@ class CosmicRacerGame(BaseGame):
             arcade.draw_text(btn["label"], btn["x"], btn["y"], arcade.color.WHITE, 14, anchor_x="center",
                              anchor_y="center")
     def on_update(self, delta_time: float):
+        if self.state == "countdown":
+            self.pulse_time += delta_time
+            self.countdown_timer -= delta_time
+            if self.countdown_timer <= 0:
+                self.state = "playing"
+            return
+
         if self.state != "playing":
             return
 
-        # Физика падения космолёта
+        self.match_timer -= delta_time
+        if self.match_timer <= 0:
+            self._handle_game_over()
+            return
+
         self.bird.change_y -= GRAVITY
         self.player_list.update()
         self.pipe_list.update()
 
-        # Интервальный спавн лазеров
         self.spawn_timer += 1
         if self.spawn_timer >= PIPE_SPAWN_RATE:
             self.spawn_pipes()
             self.spawn_timer = 0
 
-        # Коллизия с границами экрана
         if self.bird.bottom <= 0 or self.bird.top >= SCREEN_HEIGHT:
             self._handle_game_over()
             return
 
-        # Проверка пролёта препятствий и начисление очков (list-приведение для безопасности)
         for pipe in list(self.pipe_list):
             if pipe.right < 0:
                 pipe.remove_from_sprite_lists()
@@ -233,14 +264,12 @@ class CosmicRacerGame(BaseGame):
                 pipe.passed = True
                 self.score += 1
 
-        # Коллизия со стенками лазеров
         if arcade.check_for_collision_with_list(self.bird, self.pipe_list):
             self._handle_game_over()
 
     def _handle_game_over(self):
         arcade.play_sound(self.game_over_sound)
         self.state = "postgame"
-        # Передаем набранные очки хабу клуба
         self.finish_game(completed=True)
 
     def on_key_press(self, key: int, modifiers: int):

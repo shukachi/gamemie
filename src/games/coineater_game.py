@@ -5,7 +5,6 @@ from src.games.base_game import BaseGame
 from config import settings as cfg
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
-# Внутренние константы и состояния автомата
 GROUND_HEIGHT = 50
 STATE_MENU = 0
 STATE_GAME = 1
@@ -14,16 +13,15 @@ STATE_GAME_OVER = 2
 PLAYER_SPEED = 9
 
 
-
 class FallingItem(arcade.Sprite):
-    """Класс для всех полезных падающих предметов (монет, звезд, ключей)."""
+
     def __init__(self, item_type: str, filename: str, scale: float = 0.5):
         super().__init__(filename, scale=scale)
         self.item_type = item_type  # "bronze", "star", "key", "gold"
 
 
 class Meteor(arcade.Sprite):
-    """Класс для опасных метеоритов со случайной графикой и вращением."""
+
     def __init__(self, scale: float = 0.5):
         meteor_images = [
             ":resources:images/space_shooter/meteorGrey_big1.png",
@@ -38,8 +36,9 @@ class Meteor(arcade.Sprite):
     def update(self, *args, **kwargs) -> None:
         super().update(*args, **kwargs)
         self.angle += self.rotation_speed
+
+
 class CoineaterGame(BaseGame):
-    """Игра Coineater, полностью интегрированная в экосистему Arcade Club."""
 
     def __init__(self, machine_id: str, on_finish_callback):
         super().__init__("Coineater", machine_id, on_finish_callback)
@@ -51,7 +50,6 @@ class CoineaterGame(BaseGame):
         self.hover_medium = False
         self.hover_hard = False
 
-        # Списки спрайтов
         self.background_list = arcade.SpriteList()
         self.player_list = arcade.SpriteList()
         self.item_list = arcade.SpriteList()
@@ -61,12 +59,12 @@ class CoineaterGame(BaseGame):
         self.player = None
         self.lives = 3
 
-        # Параметры режима "Золотой Лихорадки"
         self.gold_mode_timer = 0.0
         self.is_gold_mode = False
         self.hurt_timer = 0.0
 
-        # Предзагрузка встроенных звуков
+        self.match_timer = 60.0
+
         self.sound_coin_bronze = arcade.load_sound(":resources:sounds/coin5.wav")
         self.sound_coin_star = arcade.load_sound(":resources:sounds/coin3.wav")
         self.sound_coin_key = arcade.load_sound(":resources:sounds/coin1.wav")
@@ -74,20 +72,35 @@ class CoineaterGame(BaseGame):
         self.sound_hurt = arcade.load_sound(":resources:sounds/hurt3.wav")
         self.sound_gameover = arcade.load_sound(":resources:sounds/gameover3.wav")
 
-        # Оптимизация текста под требования хаба
         self.ui_texts = {
-            "title": arcade.Text("COINEATER", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 140, (22, 175, 130, 255), 64, font_name="Arial Black", anchor_x="center", bold=True),
-            "start": arcade.Text("НАЖМИТЕ 'E' ИЛИ КЛИКНИТЕ ДЛЯ СТАРТА", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10, (150, 150, 150, 255), 18, font_name="Impact", anchor_x="center"),
-            "diff_label": arcade.Text("ВЫБЕРИТЕ СЛОЖНОСТЬ:", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 80, (211, 211, 211, 255), 14, font_name="Arial", anchor_x="center", bold=True),
-            "easy": arcade.Text("EASY", SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 - 140, (255, 255, 255, 255), 24, font_name="Impact", anchor_x="center"),
-            "medium": arcade.Text("MEDIUM", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 140, (255, 255, 255, 255), 24, font_name="Impact", anchor_x="center"),
-            "hard": arcade.Text("HARD", SCREEN_WIDTH // 2 + 150, SCREEN_HEIGHT // 2 - 140, (255, 255, 255, 255), 24, font_name="Impact", anchor_x="center"),
-            "score": arcade.Text("0", 75, SCREEN_HEIGHT - 60, (40, 255, 180, 255), 34, font_name="Arial Black", bold=True),
-            "lives": arcade.Text("", float(SCREEN_WIDTH - 40), float(SCREEN_HEIGHT - 50), (255, 255, 255, 255), 20, font_name="Arial Black", anchor_x="right", bold=True),
-            "gold_rush": arcade.Text("", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 55, (255, 215, 0, 255), 22, font_name="Impact", anchor_x="center"),
-            "game_over": arcade.Text("ИГРА ОКОНЧЕНА", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50, (255, 100, 100, 255), 52, font_name="Arial Black", anchor_x="center", bold=True),
-            "final_score": arcade.Text("", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 10, (255, 255, 255, 255), 24, font_name="Impact", anchor_x="center"),
-            "restart": arcade.Text("НАЖМИТЕ 'R' ДЛЯ СБРОСА / ESC ДЛЯ ВЫХОДА", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 80, (211, 211, 211, 255), 16, font_name="Arial", anchor_x="center", bold=True)
+            "title": arcade.Text("COINEATER", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 140, (22, 175, 130, 255), 64,
+                                 font_name="Arial Black", anchor_x="center", bold=True),
+            "start": arcade.Text("НАЖМИТЕ 'E' ИЛИ КЛИКНИТЕ ДЛЯ СТАРТА", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10,
+                                 (150, 150, 150, 255), 18, font_name="Impact", anchor_x="center"),
+            "diff_label": arcade.Text("ВЫБЕРИТЕ СЛОЖНОСТЬ:", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 80,
+                                      (211, 211, 211, 255), 14, font_name="Arial", anchor_x="center", bold=True),
+            "easy": arcade.Text("EASY", SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 - 140, (255, 255, 255, 255), 24,
+                                font_name="Impact", anchor_x="center"),
+            "medium": arcade.Text("MEDIUM", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 140, (255, 255, 255, 255), 24,
+                                  font_name="Impact", anchor_x="center"),
+            "hard": arcade.Text("HARD", SCREEN_WIDTH // 2 + 150, SCREEN_HEIGHT // 2 - 140, (255, 255, 255, 255), 24,
+                                font_name="Impact", anchor_x="center"),
+            "score": arcade.Text("0", 75, SCREEN_HEIGHT - 60, (40, 255, 180, 255), 34, font_name="Arial Black",
+                                 bold=True),
+            "lives": arcade.Text("", float(SCREEN_WIDTH - 40), float(SCREEN_HEIGHT - 50), (255, 255, 255, 255), 20,
+                                 font_name="Arial Black", anchor_x="right", bold=True),
+            "gold_rush": arcade.Text("", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 55, (255, 215, 0, 255), 22,
+                                     font_name="Impact", anchor_x="center"),
+            "game_over": arcade.Text("ИГРА ОКОНЧЕНА", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50, (255, 100, 100, 255),
+                                     52, font_name="Arial Black", anchor_x="center", bold=True),
+            "final_score": arcade.Text("", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 10, (255, 255, 255, 255), 24,
+                                       font_name="Impact", anchor_x="center"),
+            "restart": arcade.Text("НАЖМИТЕ 'R' ДЛЯ СБРОСА / ESC ДЛЯ ВЫХОДА", SCREEN_WIDTH // 2,
+                                   SCREEN_HEIGHT // 2 - 80, (211, 211, 211, 255), 16, font_name="Arial",
+                                   anchor_x="center", bold=True),
+
+            "match_timer": arcade.Text("ВРЕМЯ: 60", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30, (255, 255, 255, 255), 24,
+                                       font_name="Arial Black", anchor_x="center", bold=True)
         }
 
         self.fall_speed = 6.8
@@ -105,7 +118,6 @@ class CoineaterGame(BaseGame):
         self.generate_pixel_background()
 
     def generate_pixel_background(self):
-        """Создает процедурный пиксельный градиент."""
         self.background_list = arcade.SpriteList()
         pixel_size = 25
         for y in range(0, SCREEN_HEIGHT, pixel_size):
@@ -129,7 +141,6 @@ class CoineaterGame(BaseGame):
         self.right_pressed = False
 
     def setup_game(self):
-        """Инициализация или перезапуск игры под выбранную сложность."""
         self.player_list = arcade.SpriteList()
         self.item_list = arcade.SpriteList()
         self.meteor_list = arcade.SpriteList()
@@ -141,6 +152,8 @@ class CoineaterGame(BaseGame):
         self.hurt_timer = 0.0
         self.is_gold_mode = False
         self.last_item_x = SCREEN_WIDTH // 2
+
+        self.match_timer = 60.0
 
         if self.difficulty == "easy":
             self.lives = 3
@@ -177,15 +190,14 @@ class CoineaterGame(BaseGame):
         coin_icon.center_x = 45.0
         coin_icon.center_y = float(SCREEN_HEIGHT - 45)
         self.gui_sprites.append(coin_icon)
+
     def spawn_object(self):
-        """Генерация предметов на основе весов и шансов сложности."""
         min_x = max(40, self.last_item_x - self.max_x_step)
         max_x = min(SCREEN_WIDTH - 40, self.last_item_x + self.max_x_step)
         obj_x = random.randint(int(min_x), int(max_x))
         self.last_item_x = obj_x
 
         roll = random.randint(1, 100)
-
         if roll <= self.meteor_chance:
             meteor = Meteor(scale=0.5)
             meteor.center_x = float(obj_x)
@@ -214,7 +226,6 @@ class CoineaterGame(BaseGame):
     def on_draw(self):
         self.clear()
 
-        # Отрисовка игрового мира
         self.background_list.draw()
 
         arcade.draw_rect_filled(
@@ -260,6 +271,9 @@ class CoineaterGame(BaseGame):
                 self.ui_texts["gold_rush"].text = f"GOLD RUSH: {math.ceil(self.gold_mode_timer)}s"
                 self.ui_texts["gold_rush"].draw()
 
+            self.ui_texts["match_timer"].text = f"ВРЕМЯ: {max(0, math.ceil(self.match_timer))}"
+            self.ui_texts["match_timer"].draw()
+
         elif self.state == STATE_GAME_OVER:
             self.ui_texts["game_over"].draw()
             self.ui_texts["final_score"].text = f"FINAL SCORE: {self.score}"
@@ -269,7 +283,13 @@ class CoineaterGame(BaseGame):
         if self.state != STATE_GAME:
             return
 
-        # Управление на основе KEY_BINDINGS из конфигурации хаба лобби
+        self.match_timer -= delta_time
+        if self.match_timer <= 0:
+            arcade.play_sound(self.sound_gameover)
+            self.state = STATE_GAME_OVER
+            self.finish_game(completed=True)
+            return
+
         if self.left_pressed and not self.right_pressed:
             self.player.center_x -= PLAYER_SPEED
         elif self.right_pressed and not self.left_pressed:
@@ -302,7 +322,6 @@ class CoineaterGame(BaseGame):
             self.spawn_object()
             self.spawn_timer = 0.0
 
-        # Коллизии с полезными вещами
         hit_items = arcade.check_for_collision_with_list(self.player, self.item_list)
         for item in hit_items:
             if item.item_type == "key":
@@ -325,7 +344,6 @@ class CoineaterGame(BaseGame):
 
             item.remove_from_sprite_lists()
 
-        # Коллизии с метеоритами
         hit_meteors = arcade.check_for_collision_with_list(self.player, self.meteor_list)
         for meteor in hit_meteors:
             meteor.remove_from_sprite_lists()
@@ -340,7 +358,6 @@ class CoineaterGame(BaseGame):
                 self.player.color = arcade.color.RED
                 self.hurt_timer = 0.2
 
-        # Пропуск монет под землю
         for item in list(self.item_list):
             if item.bottom <= GROUND_HEIGHT:
                 if item.item_type in ("bronze", "gold"):

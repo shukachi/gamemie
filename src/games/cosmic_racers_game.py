@@ -5,12 +5,11 @@ from PIL import Image, ImageDraw, ImageFilter
 from src.games.base_game import BaseGame
 from config.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
-# Базовые константы гонки
 MAX_SPEED = 11
 ACCELERATION = 0.15
 FRICTION = 0.5
 CRITICAL_SPEED = 10
-TOTAL_LAPS = 5
+TOTAL_LAPS = 4
 
 TRACK_CENTER_X = 500
 TRACK_CENTER_Y = 300
@@ -27,7 +26,6 @@ LANE_COLORS = [
 
 
 class Car:
-    """Логика движения и физики болида (игрока и ботов)."""
     def __init__(self, start_lane, is_bot=False, bot_color=arcade.color.WHITE, difficulty="medium"):
         self.base_lane = start_lane
         self.current_lane = start_lane
@@ -55,8 +53,9 @@ class Car:
 
         if not is_bot:
             self.max_stun_time = 1.0
-
     def update(self, delta_time, is_pressing_space, total_length):
+        in_turn = False
+
         if self.is_stunned:
             self.stun_timer -= delta_time
             if self.stun_timer <= 0:
@@ -79,8 +78,7 @@ class Car:
 
         if not self.finished:
             self.distance += self.speed
-
-        in_turn = abs(self.x - TRACK_CENTER_X) > (STRAIGHT_LENGTH / 2)
+            in_turn = abs(self.x - TRACK_CENTER_X) > (STRAIGHT_LENGTH / 2)
 
         if in_turn and self.speed > CRITICAL_SPEED:
             self.is_stunned = True
@@ -95,10 +93,7 @@ class Car:
                 self.finished = True
             else:
                 self.current_lane = (self.base_lane - self.lap) % 4
-
-
 class CosmicRacersGame(BaseGame):
-    """Кольцевые гонки на удержание скорости, полностью адаптированные под хаб."""
 
     def __init__(self, machine_id: str, on_finish_callback):
         super().__init__("Cosmic Racers", machine_id, on_finish_callback)
@@ -115,10 +110,13 @@ class CosmicRacersGame(BaseGame):
         self.draw_list = None
         self.background_list = None
 
+        self.match_timer = 30.0
+        self.countdown_timer = 3.0
+        self.pulse_time = 0.0
+
         self._build_buttons()
 
     def create_abstract_texture(self) -> arcade.Texture:
-        """Программно генерирует дымчатый синий градиентный фон в памяти."""
         image = Image.new("RGBA", (SCREEN_WIDTH, SCREEN_HEIGHT), (0, 30, 80, 255))
         draw = ImageDraw.Draw(image)
         for _ in range(25):
@@ -156,7 +154,10 @@ class CosmicRacersGame(BaseGame):
         self.draw_list = arcade.SpriteList()
         self.background_list = arcade.SpriteList()
 
-        # Создаем и добавляем процедурный дымчатый фон
+        self.match_timer = 30.0
+        self.countdown_timer = 3.9
+        self.pulse_time = 0.0
+
         bg_texture = self.create_abstract_texture()
         bg_sprite = arcade.Sprite(bg_texture)
         bg_sprite.center_x = SCREEN_WIDTH // 2
@@ -177,18 +178,26 @@ class CosmicRacersGame(BaseGame):
             self.car_sprites[car] = sprite
             self.draw_list.append(sprite)
 
-        self.state = "playing"
+        for car in self.cars:
+            radius_car = BASE_RADIUS + car.current_lane * LANE_DISTANCE
+            car.x = TRACK_CENTER_X + car.distance
+            car.y = TRACK_CENTER_Y + radius_car
+            car.angle = 180 - 90
+            if car in self.car_sprites:
+                self.car_sprites[car].center_x = car.x
+                self.car_sprites[car].center_y = car.y
+                self.car_sprites[car].angle = car.angle
 
+        self.state = "countdown"
     def on_draw(self):
         self.clear()
 
         if self.state == "menu":
             self._draw_menu()
-        elif self.state in ("playing", "postgame"):
+        elif self.state in ("playing", "postgame", "countdown"):
             if self.background_list:
                 self.background_list.draw()
 
-            # Отрисовка неоновых линий трассы
             for i in range(4):
                 radius = BASE_RADIUS + i * LANE_DISTANCE
                 lane_color = LANE_COLORS[i]
@@ -201,7 +210,6 @@ class CosmicRacersGame(BaseGame):
                 arcade.draw_arc_outline(TRACK_CENTER_X - STRAIGHT_LENGTH // 2, TRACK_CENTER_Y, radius * 2, radius * 2,
                                         lane_color, 90, 270, 4)
 
-            # Белая финишная линия
             arcade.draw_line(TRACK_CENTER_X + STRAIGHT_LENGTH // 2, TRACK_CENTER_Y + BASE_RADIUS - 15,
                              TRACK_CENTER_X + STRAIGHT_LENGTH // 2, TRACK_CENTER_Y + BASE_RADIUS + 4 * LANE_DISTANCE,
                              arcade.color.WHITE, 5)
@@ -209,12 +217,16 @@ class CosmicRacersGame(BaseGame):
             if self.draw_list:
                 self.draw_list.draw()
 
-            # Вывод интерфейса (HUD) гонки
             player_car = self.cars[0]
             arcade.draw_text(f"Круг: {min(player_car.lap + 1, TOTAL_LAPS)}/{TOTAL_LAPS}", 20, SCREEN_HEIGHT - 40,
                              arcade.color.WHITE, 16, bold=True)
             arcade.draw_text(f"Скорость: {player_car.speed:.1f} / Предел: {CRITICAL_SPEED}", 20, SCREEN_HEIGHT - 70,
                              arcade.color.WHITE, 16)
+
+            if self.state == "playing":
+                display_time = max(0, math.ceil(self.match_timer))
+                arcade.draw_text(f"TIME: {display_time}s", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40,
+                                 arcade.color.CYAN, 20, anchor_x="center", bold=True, font_name="Impact")
 
             if player_car.speed > CRITICAL_SPEED and not player_car.is_stunned:
                 arcade.draw_text("ТОРМОЗИ! СЛИШКОМ БЫСТРО!", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50, arcade.color.RED,
@@ -222,6 +234,25 @@ class CosmicRacersGame(BaseGame):
             if player_car.is_stunned:
                 arcade.draw_text("СТАН! ПОТЕРЯ КОНТРОЛЯ!", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50, arcade.color.ORANGE,
                                  20, anchor_x="center", bold=True)
+
+            if self.state == "countdown":
+                current_digit = math.floor(self.countdown_timer)
+                if current_digit >= 1:
+                    fraction = self.countdown_timer - current_digit
+                    r = int(255 - (1.0 - fraction) * 255)
+                    g = int(50 + (1.0 - fraction) * 205)
+                    b = int(150 + (1.0 - fraction) * 105)
+                    font_size = int(40 + fraction * 70)
+                    arcade.draw_text(str(current_digit), SCREEN_WIDTH // 2 + 4, SCREEN_HEIGHT // 2 - 4,
+                                     (40, 10, 50, 150), font_size, anchor_x="center", anchor_y="center",
+                                     font_name="Impact", bold=True)
+                    arcade.draw_text(str(current_digit), SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                                     (r, g, b, 255), font_size, anchor_x="center", anchor_y="center",
+                                     font_name="Impact", bold=True)
+                else:
+                    arcade.draw_text("RACE!", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                                     arcade.color.NEON_GREEN, 60, anchor_x="center", anchor_y="center",
+                                     font_name="Impact", bold=True)
 
             if self.state == "postgame":
                 self._draw_postgame()
@@ -261,9 +292,28 @@ class CosmicRacersGame(BaseGame):
             arcade.draw_lrbt_rectangle_outline(l, r, b, t, arcade.color.WHITE, 2)
             arcade.draw_text(btn["label"], btn["x"], btn["y"], arcade.color.WHITE, 14, anchor_x="center",
                              anchor_y="center")
-
     def on_update(self, delta_time: float):
+        if self.state == "countdown":
+            self.pulse_time += delta_time
+            self.countdown_timer -= delta_time
+            if self.countdown_timer <= 0:
+                self.state = "playing"
+            return
+
         if self.state != "playing" or not self.game_active:
+            return
+
+        self.match_timer -= delta_time
+        if self.match_timer <= 0:
+            self.game_active = False
+            self.state = "postgame"
+            player = self.cars[0]
+            for car in self.cars:
+                if car not in self.leaderboard_list:
+                    self.leaderboard_list.append(car)
+            rank = self.leaderboard_list.index(player) if player in self.leaderboard_list else 3
+            self.score = max(0, 1000 - rank * 300)
+            self.finish_game(completed=True)
             return
 
         all_finished = True
@@ -278,7 +328,6 @@ class CosmicRacersGame(BaseGame):
             l_turn2 = l_turn1
             d = car.distance
 
-            # Исправленный расчет тригонометрических углов и траектории из оригинального кода
             if d < l_top:
                 car.x = TRACK_CENTER_X + d
                 car.y = TRACK_CENTER_Y + radius_car
