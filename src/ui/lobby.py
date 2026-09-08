@@ -207,7 +207,7 @@ class LobbyView(arcade.View):
         """Create arcade machines positioned to match the background art."""
         machine_ids = self.registry.get_machine_ids()
         self.player_state.initialize_machines(machine_ids)
-        broken_ids = set(machine_ids[-3:])  # last 3 machines are broken
+        broken_ids = set(machine_ids[-2:])  # last 2 machines are broken
 
         for i, machine_id in enumerate(machine_ids):
             if i >= len(ZONE_POSITIONS):
